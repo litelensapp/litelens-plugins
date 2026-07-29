@@ -153,6 +153,7 @@ const HelmChartDescription: FC<{ repo: string; chartName: string; version: strin
     data: readme,
     isLoading: isInfoLoading,
     isFetching,
+    isError,
   } = useGetArtifactHubReadme(repo, chartName, version);
 
   // Defer markdown rendering to avoid blocking animation frames during expensive parsing.
@@ -171,6 +172,8 @@ const HelmChartDescription: FC<{ repo: string; chartName: string; version: strin
           <div className="bg-muted h-4 w-full animate-pulse rounded" />
           <div className="bg-muted h-4 w-3/4 animate-pulse rounded" />
         </div>
+      ) : isError ? (
+        <p className="text-destructive p-4 text-xs">Failed to load documentation.</p>
       ) : deferredReadme ? (
         <Markdown className="px-4 py-3">{deferredReadme}</Markdown>
       ) : (

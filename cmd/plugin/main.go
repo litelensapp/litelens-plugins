@@ -83,9 +83,9 @@ func main() {
 
 // buildClusterProvider creates a ClusterProvider from a kubeconfig path.
 // If kubeconfig is empty, attempts in-cluster config.
+// If kubeconfig is explicitly provided but fails to load, returns an error immediately.
 func buildClusterProvider(kubeconfig string) (helmgo.ClusterProvider, error) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := context.Background()
 
 	var cs *kubernetes.Clientset
 	var rc *rest.Config
@@ -105,14 +105,14 @@ func buildClusterProvider(kubeconfig string) (helmgo.ClusterProvider, error) {
 		rc = cfg
 		activeContext = "in-cluster"
 	} else {
-		// Load from kubeconfig
+		// Load from kubeconfig — explicit path must succeed
 		cfg, err := clientcmd.BuildConfigFromFlags("", kubeconfig)
 		if err != nil {
-			return nil, fmt.Errorf("build config from kubeconfig: %w", err)
+			return nil, fmt.Errorf("kubeconfig %q: %w", kubeconfig, err)
 		}
 		client, err := kubernetes.NewForConfig(cfg)
 		if err != nil {
-			return nil, fmt.Errorf("create clientset: %w", err)
+			return nil, fmt.Errorf("create clientset from kubeconfig: %w", err)
 		}
 
 		// Get active context name

@@ -364,15 +364,71 @@ func (s *Service) GetHelmChartDetail(repository, chartName, version string) (dto
 	}, nil
 }
 
-// GetArtifactHubReadme fetches chart documentation from ArtifactHub.
-func (s *Service) GetArtifactHubReadme(repo, chartName, version string) (string, error) {
-	url := fmt.Sprintf("https://artifacthub.io/api/v1/packages/helm/%s/%s", repo, chartName)
-	if version != "" {
-		url += "/" + version
+// resolveArtifactHubRepoName resolves a local Helm repository alias to its
+// registered name on Artifact Hub. The local alias (whatever name the user
+// passed to `helm repo add <alias> <url>`) frequently does not match Artifact
+// Hub's canonical repository name for that same URL — e.g. a local alias of
+// "jenkin" for https://charts.jenkins.io resolves to Artifact Hub's "jenkinsci".
+// Artifact Hub's packages API is keyed by its own repository name, not by
+// arbitrary local aliases, so this lookup is required before any package
+// request can succeed.
+func (s *Service) resolveArtifactHubRepoName(ctx context.Context, repository string) (string, error) {
+	repoFile, err := repo.LoadFile(helmpath.ConfigPath("repositories.yaml"))
+	if err != nil {
+		return "", fmt.Errorf("artifacthub: load repositories.yaml: %w", err)
 	}
+	var repoURL string
+	for _, r := range repoFile.Repositories {
+		if r.Name == repository {
+			repoURL = r.URL
+			break
+		}
+	}
+	if repoURL == "" {
+		return "", fmt.Errorf("artifacthub: repository %q not found in repositories.yaml", repository)
+	}
+
+	reqURL := "https://artifacthub.io/api/v1/repositories/search?url=" + url.QueryEscape(repoURL)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
+	if err != nil {
+		return "", fmt.Errorf("artifacthub: new request: %w", err)
+	}
+	req.Header.Set("Accept", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("artifacthub: resolve repo: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("artifacthub: resolve repo: HTTP %d", resp.StatusCode)
+	}
+	var matches []struct {
+		Name string `json:"name"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&matches); err != nil {
+		return "", fmt.Errorf("artifacthub: decode repo search: %w", err)
+	}
+	if len(matches) == 0 {
+		return "", fmt.Errorf("artifacthub: no repository indexed for %q", repoURL)
+	}
+	return matches[0].Name, nil
+}
+
+// GetArtifactHubReadme fetches chart documentation from ArtifactHub.
+func (s *Service) GetArtifactHubReadme(repository, chartName, version string) (string, error) {
 	reqCtx, reqCancel := context.WithTimeout(s.provider.Ctx(), 60*time.Second)
 	defer reqCancel()
-	req, err := http.NewRequestWithContext(reqCtx, http.MethodGet, url, nil)
+
+	ahRepoName, err := s.resolveArtifactHubRepoName(reqCtx, repository)
+	if err != nil {
+		return "", err
+	}
+
+	reqURL := fmt.Sprintf("https://artifacthub.io/api/v1/packages/helm/%s/%s", ahRepoName, chartName)
+	if version != "" {
+		reqURL += "/" + version
+	}
+	req, err := http.NewRequestWithContext(reqCtx, http.MethodGet, reqURL, nil)
 	if err != nil {
 		return "", fmt.Errorf("artifacthub: new request: %w", err)
 	}
@@ -383,7 +439,7 @@ func (s *Service) GetArtifactHubReadme(repo, chartName, version string) (string,
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return "", nil // graceful: no readme available
+		return "", fmt.Errorf("artifacthub: HTTP %d", resp.StatusCode)
 	}
 	var body struct {
 		Readme string `json:"readme"`

@@ -7,7 +7,8 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "build": "tsup",
+    "build": "pnpm build:css && tsup",
+    "build:css": "tailwindcss -i src/style.css -o src/generated-style.css --minify",
     "test": "vitest run",
     "test:watch": "vitest"
   },
@@ -18,12 +19,14 @@
     "react-dom": "^19.2.7"
   },
   "devDependencies": {
+    "@tailwindcss/cli": "^4.3.3",
     "@testing-library/jest-dom": "catalog:",
     "@testing-library/react": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
     "@vitest/coverage-v8": "catalog:",
     "jsdom": "catalog:",
+    "tailwindcss": "^4.3.3",
     "tsup": "^8.5.1",
     "typescript": "catalog:",
     "vitest": "catalog:"

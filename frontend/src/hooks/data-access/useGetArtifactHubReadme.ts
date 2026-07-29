@@ -9,7 +9,7 @@ export function useGetArtifactHubReadme(repo: string, chartName: string, version
       const result = await GetArtifactHubReadme(repo, chartName, version);
       return result || null;
     },
-    enabled: !!repo && !!chartName,
+    enabled: !!repo && !!chartName && !!version,
     retry: false,
     refetchOnWindowFocus: false,
   });

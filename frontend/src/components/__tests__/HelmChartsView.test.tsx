@@ -203,4 +203,94 @@ describe("HelmChartsView", () => {
     // Still visible — no drawer opened (no drawer exists in this view)
     expect(screen.getAllByText("clickable-chart").length).toBeGreaterThan(0);
   });
+
+  // ─── Error state tests (bug fix verification) ─────────────────────────────────
+  // Bug: Previously, error state was dropped from destructuring, so real gRPC failures
+  // (e.g. "plugin not ready") were silently treated as "no data", masking actual errors.
+
+  it("shows 'Failed to Load Charts' when useGetHelmCharts returns isError=true with a message", () => {
+    const errorMessage = "plugin not ready: helm service unavailable";
+    (useGetHelmCharts as ReturnType<typeof vi.fn>).mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      isError: true,
+      error: new Error(errorMessage),
+    });
+
+    render(<HelmChartsView />, { wrapper: makeWrapper() });
+
+    expect(screen.getAllByText("Failed to Load Charts").length).toBeGreaterThan(0);
+    expect(screen.getAllByText(errorMessage).length).toBeGreaterThan(0);
+  });
+
+  it("shows fallback error message when error object has no message", () => {
+    (useGetHelmCharts as ReturnType<typeof vi.fn>).mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      isError: true,
+      error: {}, // Error object without message property
+    });
+
+    render(<HelmChartsView />, { wrapper: makeWrapper() });
+
+    expect(screen.getAllByText("Failed to Load Charts").length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Unable to fetch Helm charts/i).length).toBeGreaterThan(0);
+  });
+
+  it("shows 'No Helm Charts' when isError=false and data is empty (genuine empty state, not error)", () => {
+    (useGetHelmCharts as ReturnType<typeof vi.fn>).mockReturnValue({
+      data: [],
+      isLoading: false,
+      isError: false,
+    });
+
+    render(<HelmChartsView />, { wrapper: makeWrapper() });
+
+    expect(screen.getAllByText("No Helm Charts").length).toBeGreaterThan(0);
+    expect(screen.queryAllByText("Failed to Load Charts")).toHaveLength(0);
+  });
+
+  it("shows loading skeleton when isLoading=true (error state ignored during load)", () => {
+    (useGetHelmCharts as ReturnType<typeof vi.fn>).mockReturnValue({
+      data: undefined,
+      isLoading: true,
+      isError: false,
+    });
+
+    render(<HelmChartsView />, { wrapper: makeWrapper() });
+
+    // Should show skeleton loader, not error or empty state
+    expect(screen.queryAllByText("Failed to Load Charts")).toHaveLength(0);
+    expect(screen.queryAllByText("No Helm Charts")).toHaveLength(0);
+  });
+
+  it("shows populated data when isError=false and data has charts", () => {
+    const charts = [makeChart({ Name: "working-chart" })];
+    (useGetHelmCharts as ReturnType<typeof vi.fn>).mockReturnValue({
+      data: charts,
+      isLoading: false,
+      isError: false,
+    });
+
+    render(<HelmChartsView />, { wrapper: makeWrapper() });
+
+    expect(screen.getAllByText("working-chart").length).toBeGreaterThan(0);
+    expect(screen.queryAllByText("Failed to Load Charts")).toHaveLength(0);
+    expect(screen.queryAllByText("No Helm Charts")).toHaveLength(0);
+  });
+
+  it("prioritizes error state over empty state when both conditions could apply", () => {
+    // Edge case: error but data might be [] — error should take precedence
+    (useGetHelmCharts as ReturnType<typeof vi.fn>).mockReturnValue({
+      data: [],
+      isLoading: false,
+      isError: true,
+      error: new Error("Fetch failed"),
+    });
+
+    render(<HelmChartsView />, { wrapper: makeWrapper() });
+
+    expect(screen.getAllByText("Failed to Load Charts").length).toBeGreaterThan(0);
+    expect(screen.queryAllByText("No Helm Charts")).toHaveLength(0);
+  });
 });

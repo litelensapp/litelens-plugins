@@ -30,7 +30,7 @@ export const HelmChartsView: FC = () => {
   const [search, setSearch] = useState("");
   const [selectedRepos, setSelectedRepos] = useState<Set<string>>(new Set());
 
-  const { data: raw = [], isLoading } = useGetHelmCharts();
+  const { data: raw = [], isLoading, isError, error } = useGetHelmCharts();
 
   const { data: reposData = [] } = useGetHelmRepositories();
   const repos = reposData.map((r) => r.Name);
@@ -114,7 +114,21 @@ export const HelmChartsView: FC = () => {
               columnWidths={["w-[45%]", "w-[55%]", "w-[65%]", "w-[30%]", "w-[30%]"]}
             />
           )}
-          {!isLoading && !charts?.length && (
+          {!isLoading && isError && (
+            <TableRow>
+              <TableCell colSpan={5} className="px-0 py-0">
+                <EmptyState
+                  icon={<PackageIcon className="size-8" />}
+                  title="Failed to Load Charts"
+                  description={
+                    error?.message ||
+                    "Unable to fetch Helm charts. Check plugin status or try again."
+                  }
+                />
+              </TableCell>
+            </TableRow>
+          )}
+          {!isLoading && !isError && !charts?.length && (
             <TableRow>
               <TableCell colSpan={5} className="px-0 py-0">
                 <EmptyState

@@ -6,6 +6,7 @@
 export { HelmView as PluginView } from "./components/HelmView";
 export { HELM_NAV_ENTRY as PLUGIN_NAV_ENTRY } from "./const";
 export { HelmEventBridge as PluginEventBridge } from "./components/HelmEventBridge";
+export { PLUGIN_STYLES } from "./pluginStyles";
 export type { HelmViewType } from "./types";
 
 // Tray-family content components, keyed by the family name the plugin uses
