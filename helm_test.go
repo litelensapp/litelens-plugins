@@ -1,8 +1,13 @@
 package helm
 
 import (
+	"context"
+	"sync"
 	"testing"
 	"time"
+
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 )
 
 func TestHelmAge(t *testing.T) {
@@ -32,4 +37,87 @@ func TestHelmAge(t *testing.T) {
 			}
 		})
 	}
+}
+
+// mockMutableClusterProvider implements MutableClusterProvider for testing concurrency.
+type mockMutableClusterProvider struct {
+	mu              sync.RWMutex
+	cs              *kubernetes.Clientset
+	rc              *rest.Config
+	activeContext   string
+	kubeconfigPath  string
+	ctx             context.Context
+	setContextCalls int
+}
+
+func (p *mockMutableClusterProvider) ActiveClients() (cs *kubernetes.Clientset, rc *rest.Config, activeContext string, kubeconfigPaths []string) {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	return p.cs, p.rc, p.activeContext, []string{p.kubeconfigPath}
+}
+
+func (p *mockMutableClusterProvider) Ctx() context.Context {
+	return p.ctx
+}
+
+func (p *mockMutableClusterProvider) SetActiveContext(contextName, kubeconfigPath string) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.activeContext = contextName
+	p.kubeconfigPath = kubeconfigPath
+	p.setContextCalls++
+	return nil
+}
+
+// TestMutableClusterProviderConcurrency verifies that SetActiveContext and ActiveClients
+// can be called concurrently without race conditions. The dynamic cluster provider used
+// in the plugin subprocess must safely handle this pattern: the app calls SetClusterContext
+// (which calls SetActiveContext) on every feature invocation to sync the active context,
+// while the Service concurrently reads via ActiveClients().
+func TestMutableClusterProviderConcurrency(t *testing.T) {
+	t.Run("concurrent SetActiveContext and ActiveClients calls", func(t *testing.T) {
+		provider := &mockMutableClusterProvider{
+			ctx: context.Background(),
+		}
+
+		// Simulate the pattern: multiple goroutines calling ActiveClients (e.g., helm Service methods)
+		// while another goroutine calls SetActiveContext (e.g., gRPC handler for SetClusterContext).
+		var wg sync.WaitGroup
+		numReaders := 50
+		numWriters := 10
+
+		// Readers: call ActiveClients() repeatedly (simulates feature calls in Service methods)
+		for i := 0; i < numReaders; i++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				for j := 0; j < 100; j++ {
+					_, _, _, _ = provider.ActiveClients()
+					time.Sleep(time.Microsecond)
+				}
+			}()
+		}
+
+		// Writers: call SetActiveContext() repeatedly (simulates SetClusterContext RPC calls)
+		for i := 0; i < numWriters; i++ {
+			wg.Add(1)
+			go func(id int) {
+				defer wg.Done()
+				for j := 0; j < 20; j++ {
+					ctx := "ctx-" + string(rune('a'+id))
+					path := "/path/" + string(rune('a'+id))
+					_ = provider.SetActiveContext(ctx, path)
+					time.Sleep(time.Microsecond)
+				}
+			}(i)
+		}
+
+		// Wait for all goroutines to complete
+		wg.Wait()
+
+		// Verify SetActiveContext was called the expected number of times
+		if provider.setContextCalls != numWriters*20 {
+			t.Errorf("expected %d SetActiveContext calls, got %d", numWriters*20, provider.setContextCalls)
+		}
+	})
 }

@@ -20,6 +20,7 @@ service Helm {
   rpc GetHelmReleaseHistory(GetHelmReleaseHistoryRequest) returns (GetHelmReleaseHistoryResponse);
   rpc RollbackHelmRelease(RollbackHelmReleaseRequest) returns (Empty);
   rpc GetCapabilities(Empty) returns (CapabilitiesResponse);
+  rpc SetClusterContext(SetClusterContextRequest) returns (Empty);
 }
 
 message Empty {}
@@ -197,4 +198,9 @@ message CapabilitiesResponse {
   string version = 1;
   bool ready = 2;
   repeated string features = 3;
+}
+
+message SetClusterContextRequest {
+  string contextName = 1;
+  string kubeconfigPath = 2;
 }

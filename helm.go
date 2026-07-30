@@ -52,6 +52,14 @@ type ClusterProvider interface {
 	Ctx() context.Context
 }
 
+// MutableClusterProvider is a ClusterProvider whose active context can be changed
+// after construction — implemented by the plugin subprocess's dynamic provider so
+// the app can sync it to whatever cluster context is currently active, per call.
+type MutableClusterProvider interface {
+	ClusterProvider
+	SetActiveContext(contextName, kubeconfigPath string) error
+}
+
 // clusterProviderFunc adapts plain accessor closures to ClusterProvider, so
 // callers (e.g. package app) can satisfy this interface without exposing
 // ActiveClients/Ctx as public methods on a Wails-bound struct. Wails scans
@@ -92,6 +100,16 @@ func NewService(provider ClusterProvider, emit EventEmitter) *Service {
 		provider: provider,
 		emit:     emit,
 	}
+}
+
+// SetActiveContext updates the provider's active cluster context if it supports dynamic switching.
+// Returns an error if the provider does not implement MutableClusterProvider.
+func (s *Service) SetActiveContext(contextName, kubeconfigPath string) error {
+	mp, ok := s.provider.(MutableClusterProvider)
+	if !ok {
+		return fmt.Errorf("helm: cluster provider does not support dynamic context switching")
+	}
+	return mp.SetActiveContext(contextName, kubeconfigPath)
 }
 
 // helmRestGetter implements genericclioptions.RESTClientGetter using an existing rest.Config.

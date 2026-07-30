@@ -8,6 +8,7 @@ import (
 	"net"
 	"os"
 	"strconv"
+	"sync"
 	"time"
 
 	"k8s.io/client-go/kubernetes"
@@ -81,57 +82,84 @@ func main() {
 	}
 }
 
+// dynamicClusterProvider is a ClusterProvider whose active context can be changed
+// after construction via SetActiveContext, allowing the app to sync the subprocess's
+// live cluster client on every feature call.
+type dynamicClusterProvider struct {
+	mu             sync.RWMutex
+	cs             *kubernetes.Clientset
+	rc             *rest.Config
+	activeContext  string
+	kubeconfigPath string
+	ctx            context.Context
+}
+
+func (p *dynamicClusterProvider) ActiveClients() (*kubernetes.Clientset, *rest.Config, string, []string) {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	return p.cs, p.rc, p.activeContext, []string{p.kubeconfigPath}
+}
+
+func (p *dynamicClusterProvider) Ctx() context.Context {
+	return p.ctx
+}
+
+func (p *dynamicClusterProvider) SetActiveContext(contextName, kubeconfigPath string) error {
+	p.mu.RLock()
+	unchanged := contextName == p.activeContext && kubeconfigPath == p.kubeconfigPath
+	p.mu.RUnlock()
+	if unchanged {
+		return nil
+	}
+
+	var cfg *rest.Config
+	var err error
+	if kubeconfigPath == "" {
+		cfg, err = rest.InClusterConfig()
+		if err != nil {
+			return fmt.Errorf("in-cluster config: %w", err)
+		}
+	} else {
+		cfg, err = clientcmd.BuildConfigFromFlags("", kubeconfigPath)
+		if err != nil {
+			return fmt.Errorf("kubeconfig %q: %w", kubeconfigPath, err)
+		}
+	}
+	cs, err := kubernetes.NewForConfig(cfg)
+	if err != nil {
+		return fmt.Errorf("build clientset: %w", err)
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.cs, p.rc, p.activeContext, p.kubeconfigPath = cs, cfg, contextName, kubeconfigPath
+	return nil
+}
+
 // buildClusterProvider creates a ClusterProvider from a kubeconfig path.
 // If kubeconfig is empty, attempts in-cluster config.
 // If kubeconfig is explicitly provided but fails to load, returns an error immediately.
 func buildClusterProvider(kubeconfig string) (helmgo.ClusterProvider, error) {
-	ctx := context.Background()
+	dp := &dynamicClusterProvider{ctx: context.Background()}
 
-	var cs *kubernetes.Clientset
-	var rc *rest.Config
-	var activeContext string
-
+	// Resolve the initial context name from kubeconfig
+	var contextName string
 	if kubeconfig == "" {
-		// In-cluster config
-		cfg, err := rest.InClusterConfig()
-		if err != nil {
-			return nil, fmt.Errorf("in-cluster config: %w", err)
-		}
-		client, err := kubernetes.NewForConfig(cfg)
-		if err != nil {
-			return nil, fmt.Errorf("create clientset: %w", err)
-		}
-		cs = client
-		rc = cfg
-		activeContext = "in-cluster"
+		contextName = "in-cluster"
 	} else {
-		// Load from kubeconfig — explicit path must succeed
-		cfg, err := clientcmd.BuildConfigFromFlags("", kubeconfig)
-		if err != nil {
-			return nil, fmt.Errorf("kubeconfig %q: %w", kubeconfig, err)
-		}
-		client, err := kubernetes.NewForConfig(cfg)
-		if err != nil {
-			return nil, fmt.Errorf("create clientset from kubeconfig: %w", err)
-		}
-
-		// Get active context name
+		// Get active context name from kubeconfig
 		loader := &clientcmd.ClientConfigLoadingRules{Precedence: []string{kubeconfig}}
 		config, err := loader.Load()
 		if err != nil || config == nil {
-			activeContext = "default"
+			contextName = "default"
 		} else {
-			activeContext = config.CurrentContext
+			contextName = config.CurrentContext
 		}
-
-		cs = client
-		rc = cfg
 	}
 
-	return helmgo.NewClusterProviderFunc(
-		func() (*kubernetes.Clientset, *rest.Config, string, []string) {
-			return cs, rc, activeContext, []string{kubeconfig}
-		},
-		func() context.Context { return ctx },
-	), nil
+	// Seed the initial cluster configuration
+	if err := dp.SetActiveContext(contextName, kubeconfig); err != nil {
+		return nil, err
+	}
+
+	return dp, nil
 }

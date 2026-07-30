@@ -255,3 +255,11 @@ func (s *GRPCServer) GetCapabilities(ctx context.Context, _ *pb.Empty) (*pb.Capa
 		},
 	}, nil
 }
+
+// SetClusterContext implements pb.HelmServer
+func (s *GRPCServer) SetClusterContext(ctx context.Context, req *pb.SetClusterContextRequest) (*pb.Empty, error) {
+	if err := s.svc.SetActiveContext(req.ContextName, req.KubeconfigPath); err != nil {
+		return nil, err
+	}
+	return &pb.Empty{}, nil
+}
