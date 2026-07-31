@@ -5,24 +5,24 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // ─── hoisted mocks ────────────────────────────────────────────────────────────
 
-vi.mock("../../hooks/data-access/useGetHelmChartValues", () => ({
+vi.mock("../../../hooks/data-access/useGetHelmChartValues", () => ({
   useGetHelmChartValues: vi.fn(),
 }));
 
-vi.mock("../../hooks/data-access/useGetHelmChartVersions", () => ({
+vi.mock("../../../hooks/data-access/useGetHelmChartVersions", () => ({
   useGetHelmChartVersions: vi.fn(),
 }));
 
-vi.mock("../../hooks/data-mutation/useInstallHelmChart", () => ({
+vi.mock("../../../hooks/data-mutation/useInstallHelmChart", () => ({
   useInstallHelmChart: vi.fn(),
 }));
 
 // ─── imports after mocks ──────────────────────────────────────────────────────
 
-import { useGetHelmChartValues } from "../../hooks/data-access/useGetHelmChartValues";
-import { useGetHelmChartVersions } from "../../hooks/data-access/useGetHelmChartVersions";
-import { useInstallHelmChart } from "../../hooks/data-mutation/useInstallHelmChart";
-import { HelmProvider } from "../../HelmContext";
+import { useGetHelmChartValues } from "../../../hooks/data-access/useGetHelmChartValues";
+import { useGetHelmChartVersions } from "../../../hooks/data-access/useGetHelmChartVersions";
+import { useInstallHelmChart } from "../../../hooks/data-mutation/useInstallHelmChart";
+import { HelmProvider } from "../../../HelmContext";
 import { HelmChartVersionTray } from "../HelmChartVersionTray";
 
 // ─── helpers ──────────────────────────────────────────────────────────────────

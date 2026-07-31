@@ -2,25 +2,25 @@ import { vi, describe, it, expect, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, cleanup } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createElement } from "react";
-import type { HelmRelease } from "../../api/resources";
+import type { HelmRelease } from "../../../api/resources";
 
 // ─── hoisted mocks ────────────────────────────────────────────────────────────
 
 const onToggleNamespaceDetailMock = vi.hoisted(() => vi.fn());
 const openTabMock = vi.hoisted(() => vi.fn());
 
-vi.mock("../../hooks/data-access/useGetHelmReleases", () => ({
+vi.mock("../../../hooks/data-access/useGetHelmReleases", () => ({
   useGetHelmReleases: vi.fn(),
 }));
 
-vi.mock("../../HelmContext", () => ({
+vi.mock("../../../HelmContext", () => ({
   useHelmContext: vi.fn(),
 }));
 
 // ─── imports after mocks ──────────────────────────────────────────────────────
 
-import { useGetHelmReleases } from "../../hooks/data-access/useGetHelmReleases";
-import { useHelmContext } from "../../HelmContext";
+import { useGetHelmReleases } from "../../../hooks/data-access/useGetHelmReleases";
+import { useHelmContext } from "../../../HelmContext";
 import { HelmReleasesView } from "../HelmReleasesView";
 
 // ─── helpers ──────────────────────────────────────────────────────────────────

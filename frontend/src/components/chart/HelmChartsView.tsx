@@ -17,9 +17,9 @@ import {
   TruncatedText,
 } from "@litelens/design-system";
 import { FC, useState } from "react";
-import { useHelmContext } from "../HelmContext";
-import { useGetHelmCharts } from "../hooks/data-access/useGetHelmCharts";
-import { useGetHelmRepositories } from "../hooks/data-access/useGetHelmRepositories";
+import { useHelmContext } from "../../HelmContext";
+import { useGetHelmCharts } from "../../hooks/data-access/useGetHelmCharts";
+import { useGetHelmRepositories } from "../../hooks/data-access/useGetHelmRepositories";
 import { HelmChartDetailDrawer } from "./HelmChartDetailDrawer";
 import { HelmChartIcon } from "./HelmChartIcon";
 

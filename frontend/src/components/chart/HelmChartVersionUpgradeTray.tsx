@@ -11,8 +11,8 @@ import {
   useFullTextSearch,
 } from "@litelens/design-system";
 import { FC, useReducer, useState } from "react";
-import { useGetHelmChartVersions } from "../hooks/data-access/useGetHelmChartVersions";
-import { useUpgradeHelmChart } from "../hooks/data-mutation/useUpgradeHelmChart";
+import { useGetHelmChartVersions } from "../../hooks/data-access/useGetHelmChartVersions";
+import { useUpgradeHelmChart } from "../../hooks/data-mutation/useUpgradeHelmChart";
 import { HelmChartVersionSelectDropdown } from "./HelmChartVersionSelectDropdown";
 
 export interface HelmChartVersionUpgradeTrayTab {

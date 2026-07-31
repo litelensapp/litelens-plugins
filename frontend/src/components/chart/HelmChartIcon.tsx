@@ -19,6 +19,7 @@ export const HelmChartIcon: FC<{ src: string; size?: string }> = ({ src, size = 
       src={src}
       alt=""
       className={cn("shrink-0 rounded-md object-contain", size)}
+      // Icon load may fail due to external CDN issues (TLS cert errors, stale paths from Bitnami/ArtifactHub repos); fallback placeholder is handled above.
       onError={() => setErrored(true)}
     />
   );

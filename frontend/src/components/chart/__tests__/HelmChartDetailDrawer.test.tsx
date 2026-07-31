@@ -6,38 +6,38 @@ import { UnifiedTrayProvider } from "@/app/clusters/shared/components/trays/unif
 
 // ─── hoisted mocks ────────────────────────────────────────────────────────────
 
-vi.mock("../../hooks/data-access/useGetHelmChartVersions", () => ({
+vi.mock("../../../hooks/data-access/useGetHelmChartVersions", () => ({
   useGetHelmChartVersions: vi.fn(),
 }));
 
-vi.mock("../../hooks/data-access/useGetHelmChartDetail", () => ({
+vi.mock("../../../hooks/data-access/useGetHelmChartDetail", () => ({
   useGetHelmChartDetail: vi.fn(),
 }));
 
-vi.mock("../../hooks/data-access/useGetArtifactHubReadme", () => ({
+vi.mock("../../../hooks/data-access/useGetArtifactHubReadme", () => ({
   useGetArtifactHubReadme: vi.fn(),
 }));
 
-vi.mock("../../hooks/data-access/useGetHelmChartValues", () => ({
+vi.mock("../../../hooks/data-access/useGetHelmChartValues", () => ({
   useGetHelmChartValues: vi.fn(),
 }));
 
-vi.mock("../../hooks/data-mutation/useInstallHelmChart", () => ({
+vi.mock("../../../hooks/data-mutation/useInstallHelmChart", () => ({
   useInstallHelmChart: vi.fn(),
 }));
 
-vi.mock("../../HelmContext", () => ({
+vi.mock("../../../HelmContext", () => ({
   useHelmContext: vi.fn(),
 }));
 
 // ─── imports after mocks ──────────────────────────────────────────────────────
 
-import { useGetHelmChartVersions } from "../../hooks/data-access/useGetHelmChartVersions";
-import { useGetHelmChartDetail } from "../../hooks/data-access/useGetHelmChartDetail";
-import { useGetArtifactHubReadme } from "../../hooks/data-access/useGetArtifactHubReadme";
-import { useGetHelmChartValues } from "../../hooks/data-access/useGetHelmChartValues";
-import { useInstallHelmChart } from "../../hooks/data-mutation/useInstallHelmChart";
-import { useHelmContext } from "../../HelmContext";
+import { useGetHelmChartVersions } from "../../../hooks/data-access/useGetHelmChartVersions";
+import { useGetHelmChartDetail } from "../../../hooks/data-access/useGetHelmChartDetail";
+import { useGetArtifactHubReadme } from "../../../hooks/data-access/useGetArtifactHubReadme";
+import { useGetHelmChartValues } from "../../../hooks/data-access/useGetHelmChartValues";
+import { useInstallHelmChart } from "../../../hooks/data-mutation/useInstallHelmChart";
+import { useHelmContext } from "../../../HelmContext";
 import { HelmChartDetailDrawer } from "../HelmChartDetailDrawer";
 
 // ─── helpers ──────────────────────────────────────────────────────────────────

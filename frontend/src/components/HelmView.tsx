@@ -1,8 +1,8 @@
 import { FC } from "react";
 import { HelmProvider } from "../HelmContext";
 import type { HelmViewType } from "../types";
-import { HelmChartsView } from "./HelmChartsView";
-import { HelmReleasesView } from "./HelmReleasesView";
+import { HelmChartsView } from "./chart/HelmChartsView";
+import { HelmReleasesView } from "./release/HelmReleasesView";
 import type { SharedNamespaceContext, SharedUnifiedTrayContext } from "@litelens/design-system";
 
 interface HelmViewProps {

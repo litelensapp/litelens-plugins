@@ -17,10 +17,10 @@ import {
   useFullTextSearch,
 } from "@litelens/design-system";
 import { FC, Fragment, useReducer, useState } from "react";
-import { useHelmContext } from "../HelmContext";
-import { useGetHelmChartValues } from "../hooks/data-access/useGetHelmChartValues";
-import { useGetHelmChartVersions } from "../hooks/data-access/useGetHelmChartVersions";
-import { useInstallHelmChart } from "../hooks/data-mutation/useInstallHelmChart";
+import { useHelmContext } from "../../HelmContext";
+import { useGetHelmChartValues } from "../../hooks/data-access/useGetHelmChartValues";
+import { useGetHelmChartVersions } from "../../hooks/data-access/useGetHelmChartVersions";
+import { useInstallHelmChart } from "../../hooks/data-mutation/useInstallHelmChart";
 import { HelmChartVersionSelectDropdown } from "./HelmChartVersionSelectDropdown";
 
 export interface HelmChartVersionTrayTab {

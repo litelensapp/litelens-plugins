@@ -13,8 +13,8 @@ export type { HelmViewType } from "./types";
 // when calling `unifiedTray.openTab(family, params)`. The host discovers
 // these at runtime and never has static knowledge of the family names or
 // their param shapes.
-import { HelmChartVersionTrayFamily } from "./components/HelmChartVersionTrayFamily";
-import { HelmChartVersionUpgradeTrayFamily } from "./components/HelmChartVersionUpgradeTrayFamily";
+import { HelmChartVersionTrayFamily } from "./components/chart/HelmChartVersionTrayFamily";
+import { HelmChartVersionUpgradeTrayFamily } from "./components/chart/HelmChartVersionUpgradeTrayFamily";
 
 export const PLUGIN_TRAY_FAMILIES = {
   "helm-chart": HelmChartVersionTrayFamily,

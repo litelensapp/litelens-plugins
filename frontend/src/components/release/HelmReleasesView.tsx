@@ -18,13 +18,13 @@ import {
   TableSkeletonLoader,
 } from "@litelens/design-system";
 import { FC, useState } from "react";
-import { useHelmContext } from "../HelmContext";
-import { useGetHelmReleases } from "../hooks/data-access/useGetHelmReleases";
+import { useHelmContext } from "../../HelmContext";
+import { useGetHelmReleases } from "../../hooks/data-access/useGetHelmReleases";
 import {
   useDeleteHelmRelease,
   useDeleteHelmReleaseWithCleanup,
-} from "../hooks/data-mutation/useDeleteHelmRelease";
-import { decodeValuesYAML } from "../utils";
+} from "../../hooks/data-mutation/useDeleteHelmRelease";
+import { decodeValuesYAML } from "../../utils";
 import { HelmReleaseCleanupConfirmationModal } from "./HelmReleaseCleanupConfirmationModal";
 import { HelmReleaseDeleteConfirmationModal } from "./HelmReleaseDeleteConfirmationModal";
 import { HelmReleaseDetailDrawer } from "./HelmReleaseDetailDrawer";

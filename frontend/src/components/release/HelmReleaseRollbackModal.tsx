@@ -9,8 +9,8 @@ import {
   TableRow,
 } from "@litelens/design-system";
 import { FC, useState } from "react";
-import { useGetHelmReleaseHistory } from "../hooks/data-access/useGetHelmReleaseHistory";
-import { useRollbackHelmRelease } from "../hooks/data-mutation/useRollbackHelmRelease";
+import { useGetHelmReleaseHistory } from "../../hooks/data-access/useGetHelmReleaseHistory";
+import { useRollbackHelmRelease } from "../../hooks/data-mutation/useRollbackHelmRelease";
 import { HelmReleaseRollbackConfirmationModal } from "./HelmReleaseRollbackConfirmationModal";
 import { HelmReleaseStatusBadge } from "./HelmReleaseStatusBadge";
 

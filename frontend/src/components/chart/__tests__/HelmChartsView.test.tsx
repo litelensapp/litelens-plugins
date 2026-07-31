@@ -2,29 +2,29 @@ import { vi, describe, it, expect, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, cleanup } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createElement } from "react";
-import type { HelmChart } from "../../api/resources";
+import type { HelmChart } from "../../../api/resources";
 
 // ─── hoisted mocks ────────────────────────────────────────────────────────────
 
 const onToggleHelmChartDetailMock = vi.hoisted(() => vi.fn());
 
-vi.mock("../../hooks/data-access/useGetHelmCharts", () => ({
+vi.mock("../../../hooks/data-access/useGetHelmCharts", () => ({
   useGetHelmCharts: vi.fn(),
 }));
 
-vi.mock("../../hooks/data-access/useGetHelmRepositories", () => ({
+vi.mock("../../../hooks/data-access/useGetHelmRepositories", () => ({
   useGetHelmRepositories: vi.fn(),
 }));
 
-vi.mock("../../HelmContext", () => ({
+vi.mock("../../../HelmContext", () => ({
   useHelmContext: vi.fn(),
 }));
 
 // ─── imports after mocks ──────────────────────────────────────────────────────
 
-import { useGetHelmCharts } from "../../hooks/data-access/useGetHelmCharts";
-import { useGetHelmRepositories } from "../../hooks/data-access/useGetHelmRepositories";
-import { useHelmContext } from "../../HelmContext";
+import { useGetHelmCharts } from "../../../hooks/data-access/useGetHelmCharts";
+import { useGetHelmRepositories } from "../../../hooks/data-access/useGetHelmRepositories";
+import { useHelmContext } from "../../../HelmContext";
 import { HelmChartsView } from "../HelmChartsView";
 
 // ─── helpers ──────────────────────────────────────────────────────────────────

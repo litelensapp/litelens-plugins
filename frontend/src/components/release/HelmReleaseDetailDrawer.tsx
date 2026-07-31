@@ -19,13 +19,13 @@ import {
   useFullTextSearch,
 } from "@litelens/design-system";
 import { FC, useEffect, useState } from "react";
-import { useHelmContext } from "../HelmContext";
-import type { HelmReleaseDetail, HelmReleaseResource } from "../api/resources";
-import { useGetHelmReleaseDetail } from "../hooks/data-access/useGetHelmReleaseDetail";
+import { useHelmContext } from "../../HelmContext";
+import type { HelmReleaseDetail, HelmReleaseResource } from "../../api/resources";
+import { useGetHelmReleaseDetail } from "../../hooks/data-access/useGetHelmReleaseDetail";
 import {
   useDeleteHelmRelease,
   useDeleteHelmReleaseWithCleanup,
-} from "../hooks/data-mutation/useDeleteHelmRelease";
+} from "../../hooks/data-mutation/useDeleteHelmRelease";
 import { HelmReleaseCleanupConfirmationModal } from "./HelmReleaseCleanupConfirmationModal";
 import { HelmReleaseDeleteConfirmationModal } from "./HelmReleaseDeleteConfirmationModal";
 import { HelmReleaseStatusBadge } from "./HelmReleaseStatusBadge";

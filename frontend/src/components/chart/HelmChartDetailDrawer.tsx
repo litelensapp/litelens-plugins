@@ -7,10 +7,10 @@ import {
   ScrollArea,
 } from "@litelens/design-system";
 import { FC, Fragment, useDeferredValue, useState } from "react";
-import { useHelmContext } from "../HelmContext";
-import { useGetArtifactHubReadme } from "../hooks/data-access/useGetArtifactHubReadme";
-import { useGetHelmChartDetail } from "../hooks/data-access/useGetHelmChartDetail";
-import { useGetHelmChartVersions } from "../hooks/data-access/useGetHelmChartVersions";
+import { useHelmContext } from "../../HelmContext";
+import { useGetArtifactHubReadme } from "../../hooks/data-access/useGetArtifactHubReadme";
+import { useGetHelmChartDetail } from "../../hooks/data-access/useGetHelmChartDetail";
+import { useGetHelmChartVersions } from "../../hooks/data-access/useGetHelmChartVersions";
 import { HelmChartIcon } from "./HelmChartIcon";
 import { HelmChartVersionSelectDropdown } from "./HelmChartVersionSelectDropdown";
 
