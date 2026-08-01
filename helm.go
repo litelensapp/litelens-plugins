@@ -60,34 +60,6 @@ type MutableClusterProvider interface {
 	SetActiveContext(contextName, kubeconfigPath string) error
 }
 
-// clusterProviderFunc adapts plain accessor closures to ClusterProvider, so
-// callers (e.g. package app) can satisfy this interface without exposing
-// ActiveClients/Ctx as public methods on a Wails-bound struct. Wails scans
-// exported methods on bound structs for JS binding generation; leaking
-// client-go internals like *kubernetes.Clientset via such a method makes
-// Wails walk into types it can't model (e.g. schema.GroupVersion),
-// producing binding warnings in `wails dev`.
-type clusterProviderFunc struct {
-	activeClients func() (*kubernetes.Clientset, *rest.Config, string, []string)
-	ctx           func() context.Context
-}
-
-func (f *clusterProviderFunc) ActiveClients() (*kubernetes.Clientset, *rest.Config, string, []string) {
-	return f.activeClients()
-}
-
-func (f *clusterProviderFunc) Ctx() context.Context {
-	return f.ctx()
-}
-
-// NewClusterProviderFunc builds a ClusterProvider from plain accessor closures.
-func NewClusterProviderFunc(
-	activeClients func() (*kubernetes.Clientset, *rest.Config, string, []string),
-	ctx func() context.Context,
-) ClusterProvider {
-	return &clusterProviderFunc{activeClients: activeClients, ctx: ctx}
-}
-
 // Service provides helm business logic operations.
 type Service struct {
 	provider ClusterProvider

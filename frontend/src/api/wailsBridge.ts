@@ -1,14 +1,14 @@
-// Calls the main app's Wails-bound App struct directly via the global
-// `window.go` bridge that Wails injects into the webview at runtime.
+// Calls the main app's Wails-bound App struct through the generic InvokePlugin
+// bridge that Wails injects into the webview at runtime. This plugin now uses
+// the same gRPC Invoke protocol as any subprocess plugin would.
 //
 // The plugin frontend builds to a standalone ES module (see tsup.config.ts)
 // and is loaded via dynamic import() from a separate bundle — it cannot
 // resolve the `@wailsjs` alias, which only exists inside the main app's own
 // Vite build. Since the plugin runs same-origin in the main app's window
 // (see architecture notes), `window.go`/`window.runtime` are available at
-// runtime regardless of which bundle the calling code came from — this file
-// mirrors the shape of the generated `wailsjs/go/app/App.js` bindings by
-// hand, scoped to just the RPCs the helm plugin proxies through App.
+// runtime regardless of which bundle the calling code came from.
+
 import type {
   HelmChart,
   HelmChartDetail,
@@ -22,7 +22,9 @@ declare global {
   interface Window {
     go: {
       app: {
-        App: Record<string, (...args: unknown[]) => Promise<unknown>>;
+        App: {
+          InvokePlugin(pluginID: string, method: string, payloadJson: string): Promise<string>;
+        };
       };
     };
   }
@@ -30,30 +32,44 @@ declare global {
 
 const App = () => window.go.app.App;
 
-export const ListHelmCharts = (): Promise<HelmChart[]> =>
-  App().ListHelmCharts() as Promise<HelmChart[]>;
+// Helper to invoke a plugin method and parse the JSON response
+const invoke = async <T>(method: string, payload: unknown): Promise<T> => {
+  const raw = await App().InvokePlugin("helm", method, JSON.stringify(payload));
+  return JSON.parse(raw as string) as T;
+};
+
+export const ListHelmCharts = (): Promise<HelmChart[]> => invoke<HelmChart[]>("ListHelmCharts", {});
 
 export const ListHelmRepositories = (): Promise<HelmRepository[]> =>
-  App().ListHelmRepositories() as Promise<HelmRepository[]>;
+  invoke<HelmRepository[]>("ListHelmRepositories", {});
 
 export const ListHelmReleases = (namespace: string): Promise<HelmRelease[]> =>
-  App().ListHelmReleases(namespace) as Promise<HelmRelease[]>;
+  invoke<HelmRelease[]>("ListHelmReleases", { Namespace: namespace });
 
 export const ListHelmChartVersions = (repository: string, chartName: string): Promise<string[]> =>
-  App().ListHelmChartVersions(repository, chartName) as Promise<string[]>;
+  invoke<string[]>("ListHelmChartVersions", { Repository: repository, ChartName: chartName });
 
 export const GetHelmChartDetail = (
   repository: string,
   chartName: string,
   version: string
 ): Promise<HelmChartDetail> =>
-  App().GetHelmChartDetail(repository, chartName, version) as Promise<HelmChartDetail>;
+  invoke<HelmChartDetail>("GetHelmChartDetail", {
+    Repository: repository,
+    ChartName: chartName,
+    Version: version,
+  });
 
 export const GetArtifactHubReadme = (
   repo: string,
   chartName: string,
   version: string
-): Promise<string> => App().GetArtifactHubReadme(repo, chartName, version) as Promise<string>;
+): Promise<string> =>
+  invoke<string>("GetArtifactHubReadme", {
+    Repository: repo,
+    ChartName: chartName,
+    Version: version,
+  });
 
 export const InstallHelmChart = (
   namespace: string,
@@ -63,14 +79,14 @@ export const InstallHelmChart = (
   version: string,
   valuesYAML: string
 ): Promise<void> =>
-  App().InstallHelmChart(
-    namespace,
-    releaseName,
-    repository,
-    chartName,
-    version,
-    valuesYAML
-  ) as Promise<void>;
+  invoke<void>("InstallHelmChart", {
+    Namespace: namespace,
+    ReleaseName: releaseName,
+    Repository: repository,
+    ChartName: chartName,
+    Version: version,
+    ValuesYAML: valuesYAML,
+  });
 
 export const UpgradeHelmRelease = (
   namespace: string,
@@ -80,43 +96,60 @@ export const UpgradeHelmRelease = (
   version: string,
   valuesYAML: string
 ): Promise<void> =>
-  App().UpgradeHelmRelease(
-    namespace,
-    releaseName,
-    repository,
-    chartName,
-    version,
-    valuesYAML
-  ) as Promise<void>;
+  invoke<void>("UpgradeHelmRelease", {
+    Namespace: namespace,
+    ReleaseName: releaseName,
+    Repository: repository,
+    ChartName: chartName,
+    Version: version,
+    ValuesYAML: valuesYAML,
+  });
 
 export const DeleteHelmRelease = (namespace: string, releaseName: string): Promise<void> =>
-  App().DeleteHelmRelease(namespace, releaseName) as Promise<void>;
+  invoke<void>("DeleteHelmRelease", { Namespace: namespace, ReleaseName: releaseName });
 
 export const DeleteHelmReleaseWithCleanup = (
   namespace: string,
   releaseName: string
-): Promise<void> => App().DeleteHelmReleaseWithCleanup(namespace, releaseName) as Promise<void>;
+): Promise<void> =>
+  invoke<void>("DeleteHelmReleaseWithCleanup", { Namespace: namespace, ReleaseName: releaseName });
 
 export const GetHelmReleaseByName = (
   namespace: string,
   releaseName: string
 ): Promise<HelmReleaseDetail> =>
-  App().GetHelmReleaseByName(namespace, releaseName) as Promise<HelmReleaseDetail>;
+  invoke<HelmReleaseDetail>("GetHelmReleaseByName", {
+    Namespace: namespace,
+    ReleaseName: releaseName,
+  });
 
 export const GetHelmChartValues = (
   repository: string,
   chartName: string,
   version: string
-): Promise<string> => App().GetHelmChartValues(repository, chartName, version) as Promise<string>;
+): Promise<string> =>
+  invoke<string>("GetHelmChartValues", {
+    Repository: repository,
+    ChartName: chartName,
+    Version: version,
+  });
 
 export const GetHelmReleaseHistory = (
   namespace: string,
   releaseName: string
 ): Promise<HelmReleaseRevisionHistory[]> =>
-  App().GetHelmReleaseHistory(namespace, releaseName) as Promise<HelmReleaseRevisionHistory[]>;
+  invoke<HelmReleaseRevisionHistory[]>("GetHelmReleaseHistory", {
+    Namespace: namespace,
+    ReleaseName: releaseName,
+  });
 
 export const RollbackHelmRelease = (
   namespace: string,
   releaseName: string,
   revision: number
-): Promise<void> => App().RollbackHelmRelease(namespace, releaseName, revision) as Promise<void>;
+): Promise<void> =>
+  invoke<void>("RollbackHelmRelease", {
+    Namespace: namespace,
+    ReleaseName: releaseName,
+    Revision: revision,
+  });
