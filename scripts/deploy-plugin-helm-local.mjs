@@ -16,7 +16,7 @@
 // actually running — it has no meaningful "build" representation to mirror.
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { existsSync, cpSync, rmSync, mkdirSync, writeFileSync, readFileSync } from "node:fs";
+import { existsSync, cpSync, rmSync, mkdirSync, writeFileSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 
 const pluginRoot = path.resolve(import.meta.dirname, "..");
@@ -50,13 +50,37 @@ execFileSync("bash", [path.join(pluginRoot, "scripts", "build.sh")], {
   stdio: "inherit",
 });
 
-// Metadata, mirroring pluginMetadata in internal/app/plugin.go
+// Metadata, mirroring pluginMetadata in internal/app/plugin.go (which in turn
+// mirrors plugin.Manifest / the frontend's PluginManifest interface) plus the
+// two install-specific fields, releaseTag and installedAt.
+const binarySize = statSync(binaryPath).size;
 writeFileSync(
   metadataPath,
   JSON.stringify(
     {
+      id: "helm",
+      name: "Helm",
+      description: "Manage Helm charts and releases in your Kubernetes clusters",
+      version: "local-dev",
+      repository: "https://github.com/gknguyen/litelens/releases",
+      homepage: "https://helm.sh",
+      minimumHostVersion: "0.1.0",
+      maximumHostVersion: "999.999.999",
+      os: {
+        linux: ["amd64"],
+        darwin: ["arm64"],
+        windows: ["amd64"],
+      },
+      bundle: {
+        sha256: bundleSha256,
+        size: statSync(archivePath).size,
+      },
+      binary: {
+        sha256: createHash("sha256").update(readFileSync(binaryPath)).digest("hex"),
+        size: binarySize,
+      },
+      capabilities: ["helm-charts", "helm-releases"],
       releaseTag: "local-dev",
-      bundleSha256: bundleSha256,
       installedAt: new Date().toISOString(),
     },
     null,
