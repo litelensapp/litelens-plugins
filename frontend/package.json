@@ -9,8 +9,10 @@
   "scripts": {
     "build": "pnpm build:css && tsup",
     "build:css": "tailwindcss -i src/style.css -o src/generated-style.css --minify",
+    "build:report": "pnpm build:css && cross-env ANALYZE=true tsup",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
     "@litelens/design-system": "workspace:*",
@@ -24,7 +26,10 @@
     "@testing-library/react": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
+    "@vitejs/plugin-react": "catalog:",
     "@vitest/coverage-v8": "catalog:",
+    "cross-env": "catalog:",
+    "esbuild-visualizer": "catalog:",
     "jsdom": "catalog:",
     "tailwindcss": "^4.3.3",
     "tsup": "^8.5.1",

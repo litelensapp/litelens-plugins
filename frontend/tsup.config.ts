@@ -1,4 +1,9 @@
 import { defineConfig } from "tsup";
+import fs from "node:fs";
+import path from "node:path";
+import { visualizer, prepareVisualizerData } from "esbuild-visualizer";
+
+const shouldAnalyze = process.env.ANALYZE === "true";
 
 export default defineConfig({
   entry: ["src/index.ts"],
@@ -8,6 +13,7 @@ export default defineConfig({
   splitting: true,
   sourcemap: false,
   clean: true,
+  metafile: shouldAnalyze,
   // These share the host app's own module instances via the import map in
   // frontend/index.html (see frontend/public/vendor/*.js) instead of being
   // bundled into the plugin — required for react-dom/@tanstack/react-query
@@ -27,5 +33,23 @@ export default defineConfig({
     options.banner = {
       js: "/* Plugin bundle - loaded dynamically */",
     };
+  },
+  onSuccess: async () => {
+    // Generate bundle report (treemap HTML + raw-data JSON) from the esbuild metafile
+    const metafilePath = path.join(__dirname, "dist", "metafile-esm.json");
+    if (shouldAnalyze && fs.existsSync(metafilePath)) {
+      const statsDir = path.join(__dirname, "dist", "stats");
+      fs.mkdirSync(statsDir, { recursive: true });
+
+      const metadata = JSON.parse(fs.readFileSync(metafilePath, "utf-8"));
+
+      const html = await visualizer(metadata, {
+        title: "@litelens/helm-plugin-frontend Bundle Report",
+        template: "treemap",
+      });
+      fs.writeFileSync(path.join(statsDir, "bundle-report.html"), html);
+      fs.writeFileSync(path.join(statsDir, "bundle-stats.json"), prepareVisualizerData(metadata));
+      fs.renameSync(metafilePath, path.join(statsDir, "metafile-esm.json"));
+    }
   },
 });
