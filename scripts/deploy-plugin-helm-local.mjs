@@ -80,6 +80,10 @@ writeFileSync(
         size: binarySize,
       },
       capabilities: ["helm-charts", "helm-releases"],
+      assets: {
+        binaryName: "plugin-helm",
+        bundleDir: "dist",
+      },
       releaseTag: "local-dev",
       installedAt: new Date().toISOString(),
     },
