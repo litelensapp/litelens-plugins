@@ -1,221 +1,30 @@
 package helm
 
 import (
-	"bytes"
-	"compress/gzip"
 	"context"
-	"encoding/base64"
-	"encoding/json"
 	"fmt"
-	"log"
-	"net/http"
-	"net/url"
-	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 	"time"
 
-	"github.com/gknguyen/litelens/internal/dto"
-	"github.com/gknguyen/litelens/internal/kube"
+	"github.com/gknguyen/litelens/plugins/helm/internal/dto"
+	helmrest "github.com/gknguyen/litelens/plugins/helm/internal/helm/rest"
+	"github.com/gknguyen/litelens/plugins/helm/internal/kube"
 	"helm.sh/helm/v3/pkg/action"
-	helmchart "helm.sh/helm/v3/pkg/chart"
-	"helm.sh/helm/v3/pkg/chart/loader"
 	"helm.sh/helm/v3/pkg/helmpath"
-	"helm.sh/helm/v3/pkg/registry"
-	"helm.sh/helm/v3/pkg/release"
 	"helm.sh/helm/v3/pkg/repo"
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/client-go/discovery"
-	memorycache "k8s.io/client-go/discovery/cached/memory"
 	"k8s.io/client-go/dynamic"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
-	"k8s.io/client-go/restmapper"
 	"k8s.io/client-go/tools/clientcmd"
 	"sigs.k8s.io/yaml"
 )
 
 // HelmRepositoryLabel is the release label key used to store the chart's source repository.
 const HelmRepositoryLabel = "meta.litelens.io/helm-repository-name"
-
-// EventEmitter is a callback function to emit events from the helm service.
-type EventEmitter func(ctx context.Context, eventName string, data any)
-
-// ClusterProvider provides access to active cluster clients and configuration.
-type ClusterProvider interface {
-	ActiveClients() (cs *kubernetes.Clientset, rc *rest.Config, activeContext string, kubeconfigPaths []string)
-	Ctx() context.Context
-}
-
-// MutableClusterProvider is a ClusterProvider whose active context can be changed
-// after construction — implemented by the plugin subprocess's dynamic provider so
-// the app can sync it to whatever cluster context is currently active, per call.
-type MutableClusterProvider interface {
-	ClusterProvider
-	SetActiveContext(contextName, kubeconfigPath string) error
-}
-
-// Service provides helm business logic operations.
-type Service struct {
-	provider ClusterProvider
-	emit     EventEmitter
-}
-
-// NewService creates a new helm Service.
-func NewService(provider ClusterProvider, emit EventEmitter) *Service {
-	return &Service{
-		provider: provider,
-		emit:     emit,
-	}
-}
-
-// SetActiveContext updates the provider's active cluster context if it supports dynamic switching.
-// Returns an error if the provider does not implement MutableClusterProvider.
-func (s *Service) SetActiveContext(contextName, kubeconfigPath string) error {
-	mp, ok := s.provider.(MutableClusterProvider)
-	if !ok {
-		return fmt.Errorf("helm: cluster provider does not support dynamic context switching")
-	}
-	return mp.SetActiveContext(contextName, kubeconfigPath)
-}
-
-// helmRestGetter implements genericclioptions.RESTClientGetter using an existing rest.Config.
-type helmRestGetter struct {
-	rc        *rest.Config
-	rules     *clientcmd.ClientConfigLoadingRules
-	overrides *clientcmd.ConfigOverrides
-}
-
-func (g *helmRestGetter) ToRESTConfig() (*rest.Config, error) {
-	return rest.CopyConfig(g.rc), nil
-}
-
-func (g *helmRestGetter) ToDiscoveryClient() (discovery.CachedDiscoveryInterface, error) {
-	dc, err := discovery.NewDiscoveryClientForConfig(g.rc)
-	if err != nil {
-		return nil, err
-	}
-	return memorycache.NewMemCacheClient(dc), nil
-}
-
-func (g *helmRestGetter) ToRESTMapper() (meta.RESTMapper, error) {
-	dc, err := g.ToDiscoveryClient()
-	if err != nil {
-		return nil, err
-	}
-	return restmapper.NewDeferredDiscoveryRESTMapper(dc), nil
-}
-
-func (g *helmRestGetter) ToRawKubeConfigLoader() clientcmd.ClientConfig {
-	return clientcmd.NewNonInteractiveDeferredLoadingClientConfig(g.rules, g.overrides)
-}
-
-// ListHelmCharts reads the local helm repo cache and returns available charts.
-func (s *Service) ListHelmCharts() ([]dto.HelmChart, error) {
-	cacheDir := helmpath.CachePath("repository")
-
-	entries, err := os.ReadDir(cacheDir)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return []dto.HelmChart{}, nil
-		}
-		return []dto.HelmChart{}, fmt.Errorf("helm: read cache dir: %w", err)
-	}
-
-	var charts []dto.HelmChart
-	for _, entry := range entries {
-		if entry.IsDir() || !strings.HasSuffix(entry.Name(), "-index.yaml") {
-			continue
-		}
-		repoAlias := strings.TrimSuffix(filepath.Base(entry.Name()), "-index.yaml")
-		indexPath := filepath.Join(cacheDir, entry.Name())
-		index, err := repo.LoadIndexFile(indexPath)
-		if err != nil {
-			log.Printf("helm: load index %s: %v", indexPath, err)
-			continue
-		}
-		index.SortEntries()
-		for chartName, versions := range index.Entries {
-			if len(versions) == 0 {
-				continue
-			}
-			latest := versions[0]
-			charts = append(charts, dto.HelmChart{
-				Name:        chartName,
-				Description: latest.Description,
-				Version:     latest.Version,
-				AppVersion:  latest.AppVersion,
-				Repository:  repoAlias,
-				Icon:        latest.Icon,
-			})
-		}
-	}
-
-	if charts == nil {
-		return []dto.HelmChart{}, nil
-	}
-	return charts, nil
-}
-
-// ListHelmRepositories returns the list of configured helm repositories.
-func (s *Service) ListHelmRepositories() ([]dto.HelmRepository, error) {
-	f, err := repo.LoadFile(helmpath.ConfigPath("repositories.yaml"))
-	if err != nil {
-		if os.IsNotExist(err) {
-			return []dto.HelmRepository{}, nil
-		}
-		return []dto.HelmRepository{}, fmt.Errorf("helm: read repositories: %w", err)
-	}
-	result := make([]dto.HelmRepository, 0, len(f.Repositories))
-	for _, r := range f.Repositories {
-		result = append(result, dto.HelmRepository{Name: r.Name, URL: r.URL})
-	}
-	return result, nil
-}
-
-// mergedValuesYAML merges a release's chart defaults with user-supplied overrides
-// and marshals the result to YAML. Returns "" if the chart is nil or marshal fails.
-func mergedValuesYAML(rel *release.Release) string {
-	if rel == nil || rel.Chart == nil {
-		return ""
-	}
-	merged := make(map[string]interface{}, len(rel.Chart.Values))
-	for k, v := range rel.Chart.Values {
-		merged[k] = v
-	}
-	for k, v := range rel.Config {
-		merged[k] = v
-	}
-	yamlBytes, err := yaml.Marshal(merged)
-	if err != nil {
-		return ""
-	}
-	return string(yamlBytes)
-}
-
-// compressValuesYAML gzip-compresses valuesYAML and base64-encodes the result so it
-// can be transmitted as a JSON string over Wails IPC without bloating the payload of
-// ListHelmReleases (called for every release row, unlike the detail endpoint).
-// Returns "" if input is empty or compression fails.
-func compressValuesYAML(valuesYAML string) string {
-	if valuesYAML == "" {
-		return ""
-	}
-	var buf bytes.Buffer
-	gz := gzip.NewWriter(&buf)
-	if _, err := gz.Write([]byte(valuesYAML)); err != nil {
-		return ""
-	}
-	if err := gz.Close(); err != nil {
-		return ""
-	}
-	return base64.StdEncoding.EncodeToString(buf.Bytes())
-}
 
 func (s *Service) ListHelmReleases(namespace string) ([]dto.HelmRelease, error) {
 	cs, rc, activeCtx, kubeconfigPaths := s.provider.ActiveClients()
@@ -226,10 +35,10 @@ func (s *Service) ListHelmReleases(namespace string) ([]dto.HelmRelease, error) 
 		return []dto.HelmRelease{}, nil
 	}
 
-	getter := &helmRestGetter{
-		rc:        rc,
-		rules:     kube.LoadingRules(kubeconfigPaths),
-		overrides: &clientcmd.ConfigOverrides{CurrentContext: activeCtx},
+	getter := &helmrest.Getter{
+		RC:        rc,
+		Rules:     kube.LoadingRules(kubeconfigPaths),
+		Overrides: &clientcmd.ConfigOverrides{CurrentContext: activeCtx},
 	}
 	cfg := new(action.Configuration)
 	if err := cfg.Init(getter, namespace, "secrets", func(string, ...any) {}); err != nil {
@@ -269,247 +78,6 @@ func (s *Service) ListHelmReleases(namespace string) ([]dto.HelmRelease, error) 
 		})
 	}
 	return result, nil
-}
-
-// ListHelmChartVersions returns all available versions of a chart from a repository.
-func (s *Service) ListHelmChartVersions(repository, chartName string) ([]string, error) {
-	cacheDir := helmpath.CachePath("repository")
-	indexPath := filepath.Join(cacheDir, repository+"-index.yaml")
-	index, err := repo.LoadIndexFile(indexPath)
-	if err != nil {
-		return []string{}, fmt.Errorf("helm: load index %s: %w", indexPath, err)
-	}
-	versions, ok := index.Entries[chartName]
-	if !ok || len(versions) == 0 {
-		return []string{}, fmt.Errorf("helm: chart %q not found in repo %q", chartName, repository)
-	}
-	result := make([]string, 0, len(versions))
-	for _, v := range versions {
-		if v != nil {
-			result = append(result, v.Version)
-		}
-	}
-	return result, nil
-}
-
-// GetHelmChartDetail returns detailed metadata for a single chart from a local repo cache.
-// If version is empty, returns the latest version entry.
-func (s *Service) GetHelmChartDetail(repository, chartName, version string) (dto.HelmChartDetail, error) {
-	cacheDir := helmpath.CachePath("repository")
-	indexPath := filepath.Join(cacheDir, repository+"-index.yaml")
-	index, err := repo.LoadIndexFile(indexPath)
-	if err != nil {
-		return dto.HelmChartDetail{}, fmt.Errorf("helm: load index %s: %w", indexPath, err)
-	}
-	versions, ok := index.Entries[chartName]
-	if !ok || len(versions) == 0 {
-		return dto.HelmChartDetail{}, fmt.Errorf("helm: chart %q not found in repo %q", chartName, repository)
-	}
-
-	var chartVersion = versions[0]
-	if version != "" {
-		found := false
-		for _, v := range versions {
-			if v != nil && v.Version == version {
-				chartVersion = v
-				found = true
-				break
-			}
-		}
-		if !found {
-			return dto.HelmChartDetail{}, fmt.Errorf("helm: version %q of chart %q not found", version, chartName)
-		}
-	}
-
-	maintainers := make([]string, 0, len(chartVersion.Maintainers))
-	for _, m := range chartVersion.Maintainers {
-		if m == nil {
-			continue
-		}
-		if m.Email != "" {
-			maintainers = append(maintainers, m.Name+" <"+m.Email+">")
-		} else {
-			maintainers = append(maintainers, m.Name)
-		}
-	}
-	keywords := chartVersion.Keywords
-	if keywords == nil {
-		keywords = []string{}
-	}
-	sources := chartVersion.Sources
-	if sources == nil {
-		sources = []string{}
-	}
-	return dto.HelmChartDetail{
-		Name:        chartName,
-		Description: chartVersion.Description,
-		Version:     chartVersion.Version,
-		AppVersion:  chartVersion.AppVersion,
-		Repository:  repository,
-		Icon:        chartVersion.Icon,
-		Home:        chartVersion.Home,
-		Keywords:    keywords,
-		Sources:     sources,
-		Maintainers: maintainers,
-	}, nil
-}
-
-// resolveArtifactHubRepoName resolves a local Helm repository alias to its
-// registered name on Artifact Hub. The local alias (whatever name the user
-// passed to `helm repo add <alias> <url>`) frequently does not match Artifact
-// Hub's canonical repository name for that same URL — e.g. a local alias of
-// "jenkin" for https://charts.jenkins.io resolves to Artifact Hub's "jenkinsci".
-// Artifact Hub's packages API is keyed by its own repository name, not by
-// arbitrary local aliases, so this lookup is required before any package
-// request can succeed.
-func (s *Service) resolveArtifactHubRepoName(ctx context.Context, repository string) (string, error) {
-	repoFile, err := repo.LoadFile(helmpath.ConfigPath("repositories.yaml"))
-	if err != nil {
-		return "", fmt.Errorf("artifacthub: load repositories.yaml: %w", err)
-	}
-	var repoURL string
-	for _, r := range repoFile.Repositories {
-		if r.Name == repository {
-			repoURL = r.URL
-			break
-		}
-	}
-	if repoURL == "" {
-		return "", fmt.Errorf("artifacthub: repository %q not found in repositories.yaml", repository)
-	}
-
-	reqURL := "https://artifacthub.io/api/v1/repositories/search?url=" + url.QueryEscape(repoURL)
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
-	if err != nil {
-		return "", fmt.Errorf("artifacthub: new request: %w", err)
-	}
-	req.Header.Set("Accept", "application/json")
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return "", fmt.Errorf("artifacthub: resolve repo: %w", err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("artifacthub: resolve repo: HTTP %d", resp.StatusCode)
-	}
-	var matches []struct {
-		Name string `json:"name"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&matches); err != nil {
-		return "", fmt.Errorf("artifacthub: decode repo search: %w", err)
-	}
-	if len(matches) == 0 {
-		return "", fmt.Errorf("artifacthub: no repository indexed for %q", repoURL)
-	}
-	return matches[0].Name, nil
-}
-
-// GetArtifactHubReadme fetches chart documentation from ArtifactHub.
-func (s *Service) GetArtifactHubReadme(repository, chartName, version string) (string, error) {
-	reqCtx, reqCancel := context.WithTimeout(s.provider.Ctx(), 60*time.Second)
-	defer reqCancel()
-
-	ahRepoName, err := s.resolveArtifactHubRepoName(reqCtx, repository)
-	if err != nil {
-		return "", err
-	}
-
-	reqURL := fmt.Sprintf("https://artifacthub.io/api/v1/packages/helm/%s/%s", ahRepoName, chartName)
-	if version != "" {
-		reqURL += "/" + version
-	}
-	req, err := http.NewRequestWithContext(reqCtx, http.MethodGet, reqURL, nil)
-	if err != nil {
-		return "", fmt.Errorf("artifacthub: new request: %w", err)
-	}
-	req.Header.Set("Accept", "application/json")
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return "", fmt.Errorf("artifacthub: do request: %w", err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("artifacthub: HTTP %d", resp.StatusCode)
-	}
-	var body struct {
-		Readme string `json:"readme"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
-		return "", fmt.Errorf("artifacthub: decode: %w", err)
-	}
-	return body.Readme, nil
-}
-
-// resolveChartURL returns an absolute URL for a chart download entry.
-// OCI and HTTP(S) absolute URLs are returned unchanged.
-// Relative URLs are resolved against the repo's configured URL from repositories.yaml.
-func resolveChartURL(repository, rawURL string) (string, error) {
-	if strings.HasPrefix(rawURL, "//") {
-		return "", fmt.Errorf("helm: protocol-relative URLs are not allowed: %q", rawURL)
-	}
-	if strings.HasPrefix(rawURL, "oci://") ||
-		strings.HasPrefix(rawURL, "http://") ||
-		strings.HasPrefix(rawURL, "https://") {
-		return rawURL, nil
-	}
-	repoFile, err := repo.LoadFile(helmpath.ConfigPath("repositories.yaml"))
-	if err != nil {
-		return "", fmt.Errorf("helm: load repositories.yaml: %w", err)
-	}
-	for _, r := range repoFile.Repositories {
-		if r.Name == repository {
-			base, err := url.Parse(strings.TrimRight(r.URL, "/") + "/")
-			if err != nil {
-				return "", fmt.Errorf("helm: parse repo URL %q: %w", r.URL, err)
-			}
-			ref, err := url.Parse(rawURL)
-			if err != nil {
-				return "", fmt.Errorf("helm: parse chart URL %q: %w", rawURL, err)
-			}
-			return base.ResolveReference(ref).String(), nil
-		}
-	}
-	return "", fmt.Errorf("helm: repository %q not found in repositories.yaml", repository)
-}
-
-// downloadChart fetches and parses a Helm chart from an HTTP(S) or OCI URL.
-func downloadChart(ctx context.Context, chartURL string) (*helmchart.Chart, error) {
-	if ref, ok := strings.CutPrefix(chartURL, "oci://"); ok {
-		rc, err := registry.NewClient()
-		if err != nil {
-			return nil, fmt.Errorf("helm: create OCI registry client: %w", err)
-		}
-		result, err := rc.Pull(ref, registry.PullOptWithChart(true))
-		if err != nil {
-			return nil, fmt.Errorf("helm: pull OCI chart %q: %w", ref, err)
-		}
-		if result.Chart == nil || len(result.Chart.Data) == 0 {
-			return nil, fmt.Errorf("helm: OCI pull returned no chart data for %q", ref)
-		}
-		ch, err := loader.LoadArchive(bytes.NewReader(result.Chart.Data))
-		if err != nil {
-			return nil, fmt.Errorf("helm: load OCI chart archive: %w", err)
-		}
-		return ch, nil
-	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, chartURL, nil)
-	if err != nil {
-		return nil, fmt.Errorf("helm: build request: %w", err)
-	}
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("helm: download chart: %w", err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("helm: download chart: status %d", resp.StatusCode)
-	}
-	ch, err := loader.LoadArchive(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("helm: load chart archive: %w", err)
-	}
-	return ch, nil
 }
 
 // InstallHelmChart installs a helm chart into the specified namespace.
@@ -566,10 +134,10 @@ func (s *Service) InstallHelmChart(namespace, releaseName, repository, chartName
 	}
 
 	// Set up helm configuration wired to the active cluster context.
-	getter := &helmRestGetter{
-		rc:        rc,
-		rules:     kube.LoadingRules(kubeconfigPaths),
-		overrides: &clientcmd.ConfigOverrides{CurrentContext: activeCtx},
+	getter := &helmrest.Getter{
+		RC:        rc,
+		Rules:     kube.LoadingRules(kubeconfigPaths),
+		Overrides: &clientcmd.ConfigOverrides{CurrentContext: activeCtx},
 	}
 	cfg := new(action.Configuration)
 	if err := cfg.Init(getter, namespace, "secrets", func(string, ...any) {}); err != nil {
@@ -674,10 +242,10 @@ func (s *Service) UpgradeHelmRelease(namespace, releaseName, repository, chartNa
 	}
 
 	// Set up helm configuration wired to the active cluster context.
-	getter := &helmRestGetter{
-		rc:        rc,
-		rules:     kube.LoadingRules(kubeconfigPaths),
-		overrides: &clientcmd.ConfigOverrides{CurrentContext: activeCtx},
+	getter := &helmrest.Getter{
+		RC:        rc,
+		Rules:     kube.LoadingRules(kubeconfigPaths),
+		Overrides: &clientcmd.ConfigOverrides{CurrentContext: activeCtx},
 	}
 	cfg := new(action.Configuration)
 	if err := cfg.Init(getter, namespace, "secrets", func(string, ...any) {}); err != nil {
@@ -732,10 +300,10 @@ func (s *Service) DeleteHelmRelease(namespace, releaseName string) error {
 	}
 
 	// Set up helm configuration wired to the active cluster context.
-	getter := &helmRestGetter{
-		rc:        rc,
-		rules:     kube.LoadingRules(kubeconfigPaths),
-		overrides: &clientcmd.ConfigOverrides{CurrentContext: activeCtx},
+	getter := &helmrest.Getter{
+		RC:        rc,
+		Rules:     kube.LoadingRules(kubeconfigPaths),
+		Overrides: &clientcmd.ConfigOverrides{CurrentContext: activeCtx},
 	}
 	cfg := new(action.Configuration)
 	if err := cfg.Init(getter, namespace, "secrets", func(string, ...any) {}); err != nil {
@@ -767,10 +335,10 @@ func (s *Service) DeleteHelmReleaseWithCleanup(namespace, releaseName string) er
 		return fmt.Errorf("helm: no REST config for active context")
 	}
 
-	getter := &helmRestGetter{
-		rc:        rc,
-		rules:     kube.LoadingRules(kubeconfigPaths),
-		overrides: &clientcmd.ConfigOverrides{CurrentContext: activeCtx},
+	getter := &helmrest.Getter{
+		RC:        rc,
+		Rules:     kube.LoadingRules(kubeconfigPaths),
+		Overrides: &clientcmd.ConfigOverrides{CurrentContext: activeCtx},
 	}
 	cfg := new(action.Configuration)
 	if err := cfg.Init(getter, namespace, "secrets", func(string, ...any) {}); err != nil {
@@ -1059,50 +627,6 @@ func (s *Service) DeleteHelmReleaseWithCleanup(namespace, releaseName string) er
 	return nil
 }
 
-// helmHasVerb reports whether the given verb appears in the resource's verb list.
-func helmHasVerb(verbs metav1.Verbs, verb string) bool {
-	for _, v := range verbs {
-		if v == verb {
-			return true
-		}
-	}
-	return false
-}
-
-// parseManifestResources splits a multi-document Helm manifest and extracts
-// kind/name/namespace from each document, skipping empty or comment-only docs.
-// Namespaced resource templates frequently omit `metadata.namespace` and rely
-// on the release namespace instead, so releaseNamespace is used as a fallback.
-func parseManifestResources(manifest, releaseNamespace string) []dto.HelmReleaseResource {
-	var out []dto.HelmReleaseResource
-	for _, doc := range strings.Split(manifest, "\n---") {
-		doc = strings.TrimSpace(doc)
-		if doc == "" {
-			continue
-		}
-		var meta struct {
-			Kind     string `json:"kind"`
-			Metadata struct {
-				Name      string `json:"name"`
-				Namespace string `json:"namespace"`
-			} `json:"metadata"`
-		}
-		if err := yaml.Unmarshal([]byte(doc), &meta); err != nil || meta.Kind == "" || meta.Metadata.Name == "" {
-			continue
-		}
-		ns := meta.Metadata.Namespace
-		if ns == "" {
-			ns = releaseNamespace
-		}
-		out = append(out, dto.HelmReleaseResource{
-			Kind:      meta.Kind,
-			Name:      meta.Metadata.Name,
-			Namespace: ns,
-		})
-	}
-	return out
-}
-
 // GetHelmReleaseByName returns detailed metadata for a single helm release.
 func (s *Service) GetHelmReleaseByName(namespace, releaseName string) (*dto.HelmReleaseDetail, error) {
 	cs, rc, activeCtx, kubeconfigPaths := s.provider.ActiveClients()
@@ -1114,10 +638,10 @@ func (s *Service) GetHelmReleaseByName(namespace, releaseName string) (*dto.Helm
 	}
 
 	// Set up helm configuration wired to the active cluster context.
-	getter := &helmRestGetter{
-		rc:        rc,
-		rules:     kube.LoadingRules(kubeconfigPaths),
-		overrides: &clientcmd.ConfigOverrides{CurrentContext: activeCtx},
+	getter := &helmrest.Getter{
+		RC:        rc,
+		Rules:     kube.LoadingRules(kubeconfigPaths),
+		Overrides: &clientcmd.ConfigOverrides{CurrentContext: activeCtx},
 	}
 	cfg := new(action.Configuration)
 	if err := cfg.Init(getter, namespace, "secrets", func(string, ...any) {}); err != nil {
@@ -1166,67 +690,6 @@ func (s *Service) GetHelmReleaseByName(namespace, releaseName string) (*dto.Helm
 	}, nil
 }
 
-// GetHelmChartValues returns the values.yaml content for a chart version.
-// If version is empty, returns the latest version.
-func (s *Service) GetHelmChartValues(repository, chartName, version string) (string, error) {
-	cacheDir := helmpath.CachePath("repository")
-	indexPath := filepath.Join(cacheDir, repository+"-index.yaml")
-	index, err := repo.LoadIndexFile(indexPath)
-	if err != nil {
-		return "", fmt.Errorf("helm: load index %s: %w", indexPath, err)
-	}
-	versions, ok := index.Entries[chartName]
-	if !ok || len(versions) == 0 {
-		return "", fmt.Errorf("helm: chart %q not found in repo %q", chartName, repository)
-	}
-
-	var chartVersion = versions[0]
-	if version != "" {
-		found := false
-		for _, v := range versions {
-			if v != nil && v.Version == version {
-				chartVersion = v
-				found = true
-				break
-			}
-		}
-		if !found {
-			return "", fmt.Errorf("helm: version %q of chart %q not found", version, chartName)
-		}
-	}
-
-	if len(chartVersion.URLs) == 0 {
-		return "", fmt.Errorf("helm: no download URLs found for chart %q version %q", chartName, chartVersion.Version)
-	}
-	chartURL, err := resolveChartURL(repository, chartVersion.URLs[0])
-	if err != nil {
-		return "", fmt.Errorf("helm: resolve chart URL: %w", err)
-	}
-
-	dlCtx, dlCancel := context.WithTimeout(s.provider.Ctx(), 60*time.Second)
-	defer dlCancel()
-	ch, err := downloadChart(dlCtx, chartURL)
-	if err != nil {
-		return "", err
-	}
-
-	// Prefer raw file content to preserve comments.
-	for _, f := range ch.Raw {
-		if f != nil && f.Name == "values.yaml" {
-			return string(f.Data), nil
-		}
-	}
-	// Fallback: marshal parsed values (no comments).
-	if len(ch.Values) == 0 {
-		return "", nil
-	}
-	out, err := yaml.Marshal(ch.Values)
-	if err != nil {
-		return "", fmt.Errorf("helm: marshal values: %w", err)
-	}
-	return string(out), nil
-}
-
 // GetHelmReleaseHistory returns revision history for a release, sorted newest-first.
 func (s *Service) GetHelmReleaseHistory(namespace, releaseName string) ([]dto.HelmReleaseRevisionHistory, error) {
 	cs, rc, activeCtx, kubeconfigPaths := s.provider.ActiveClients()
@@ -1238,10 +701,10 @@ func (s *Service) GetHelmReleaseHistory(namespace, releaseName string) ([]dto.He
 	}
 
 	// Set up helm configuration wired to the active cluster context.
-	getter := &helmRestGetter{
-		rc:        rc,
-		rules:     kube.LoadingRules(kubeconfigPaths),
-		overrides: &clientcmd.ConfigOverrides{CurrentContext: activeCtx},
+	getter := &helmrest.Getter{
+		RC:        rc,
+		Rules:     kube.LoadingRules(kubeconfigPaths),
+		Overrides: &clientcmd.ConfigOverrides{CurrentContext: activeCtx},
 	}
 	cfg := new(action.Configuration)
 	if err := cfg.Init(getter, namespace, "secrets", func(string, ...any) {}); err != nil {
@@ -1307,10 +770,10 @@ func (s *Service) RollbackHelmRelease(namespace, releaseName string, revision in
 	}
 
 	// Set up helm configuration wired to the active cluster context.
-	getter := &helmRestGetter{
-		rc:        rc,
-		rules:     kube.LoadingRules(kubeconfigPaths),
-		overrides: &clientcmd.ConfigOverrides{CurrentContext: activeCtx},
+	getter := &helmrest.Getter{
+		RC:        rc,
+		Rules:     kube.LoadingRules(kubeconfigPaths),
+		Overrides: &clientcmd.ConfigOverrides{CurrentContext: activeCtx},
 	}
 	cfg := new(action.Configuration)
 	if err := cfg.Init(getter, namespace, "secrets", func(string, ...any) {}); err != nil {
@@ -1327,21 +790,4 @@ func (s *Service) RollbackHelmRelease(namespace, releaseName string, revision in
 	}
 
 	return nil
-}
-
-// helmAge formats a duration as a human-readable "2d", "3h", "45m" style string.
-func helmAge(t time.Time) string {
-	if t.IsZero() {
-		return "—"
-	}
-	d := time.Since(t)
-	d = max(d, 0)
-	switch {
-	case d >= 24*time.Hour:
-		return fmt.Sprintf("%dd", int(d.Hours()/24))
-	case d >= time.Hour:
-		return fmt.Sprintf("%dh", int(d.Hours()))
-	default:
-		return fmt.Sprintf("%dm", int(d.Minutes()))
-	}
 }

@@ -8,8 +8,8 @@ import (
 
 	"google.golang.org/grpc"
 
-	"github.com/gknguyen/litelens/internal/dto"
-	"github.com/gknguyen/litelens/internal/plugin/pb"
+	"github.com/gknguyen/litelens/plugins/helm/internal/dto"
+	"github.com/gknguyen/litelens/plugins/helm/internal/server/pb"
 )
 
 // Service interface matches the methods we need from helm.Service

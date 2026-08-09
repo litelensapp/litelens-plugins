@@ -15,7 +15,7 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 
-	helmgo "github.com/gknguyen/litelens/plugins/helm"
+	helmgo "github.com/gknguyen/litelens/plugins/helm/internal/helm"
 	"github.com/gknguyen/litelens/plugins/helm/internal/server"
 )
 
@@ -64,7 +64,7 @@ func main() {
 	}
 
 	// Handshake: emit exactly one JSON line to stdout on readiness
-	handshake := map[string]interface{}{
+	handshake := map[string]any{
 		"type":      "READY",
 		"version":   Version,
 		"grpcPort":  grpcPort,

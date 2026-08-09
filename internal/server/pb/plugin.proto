@@ -1,0 +1,40 @@
+syntax = "proto3";
+
+// NOTE: This proto must stay byte-identical (aside from go_package) to
+// internal/plugin/pb/plugin.proto in the root module. The host app and
+// plugin subprocesses communicate over this wire contract independently
+// of Go import paths, so keep both copies in sync until plugins/helm is
+// split into its own repository, at which point this becomes canonical.
+
+package pluginapi;
+
+option go_package = "github.com/gknguyen/litelens/plugins/helm/internal/server/pb";
+
+service Plugin {
+  rpc GetCapabilities(Empty) returns (CapabilitiesResponse);
+  rpc SetClusterContext(SetClusterContextRequest) returns (Empty);
+  rpc Invoke(InvokeRequest) returns (InvokeResponse);
+}
+
+message Empty {}
+
+message CapabilitiesResponse {
+  string version = 1;
+  bool ready = 2;
+  repeated string features = 3;
+}
+
+message SetClusterContextRequest {
+  string contextName = 1;
+  string kubeconfigPath = 2;
+}
+
+message InvokeRequest {
+  string method = 1;
+  string payloadJson = 2;
+}
+
+message InvokeResponse {
+  string payloadJson = 1;
+  string error = 2;
+}

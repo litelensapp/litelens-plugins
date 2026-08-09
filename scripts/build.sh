@@ -33,6 +33,6 @@ GOOS="$GOOS" GOARCH="$GOARCH" go build \
   -o "$OUTPUT" \
   -ldflags "-s -w -X main.Version=$VERSION" \
   -trimpath \
-  ./cmd/plugin
+  ./internal
 
 echo "done: $OUTPUT"
