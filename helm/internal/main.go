@@ -15,8 +15,8 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 
-	helmgo "github.com/gknguyen/litelens/plugins/helm/internal/helm"
-	"github.com/gknguyen/litelens/plugins/helm/internal/server"
+	helmgo "github.com/litelensapp/litelens-plugins/helm/internal/helm"
+	"github.com/litelensapp/litelens-plugins/helm/internal/server"
 )
 
 var (

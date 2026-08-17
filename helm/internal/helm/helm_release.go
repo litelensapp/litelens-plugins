@@ -8,9 +8,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gknguyen/litelens/plugins/helm/internal/dto"
-	helmrest "github.com/gknguyen/litelens/plugins/helm/internal/helm/rest"
-	"github.com/gknguyen/litelens/plugins/helm/internal/kube"
+	"github.com/litelensapp/litelens-plugins/helm/internal/dto"
+	helmrest "github.com/litelensapp/litelens-plugins/helm/internal/helm/rest"
+	"github.com/litelensapp/litelens-plugins/helm/internal/kube"
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/helmpath"
 	"helm.sh/helm/v3/pkg/repo"

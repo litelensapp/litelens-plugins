@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/gknguyen/litelens/plugins/helm/internal/dto"
+	"github.com/litelensapp/litelens-plugins/helm/internal/dto"
 	"helm.sh/helm/v3/pkg/helmpath"
 	"helm.sh/helm/v3/pkg/repo"
 	"k8s.io/client-go/kubernetes"

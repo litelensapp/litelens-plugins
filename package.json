@@ -1,0 +1,15 @@
+{
+  "name": "litelens-plugins",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "engines": {
+    "node": "26"
+  },
+  "packageManager": "pnpm@11.10.0",
+  "scripts": {
+    "build:helm:fe": "pnpm --filter @litelens/helm-plugin-frontend run build",
+    "test:helm:fe": "pnpm --filter @litelens/helm-plugin-frontend run test",
+    "test:helm:be": "cd helm && go test -race -v ./..."
+  }
+}

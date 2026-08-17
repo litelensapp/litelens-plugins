@@ -1,4 +1,4 @@
-module github.com/gknguyen/litelens/plugins/helm
+module github.com/litelensapp/litelens-plugins/helm
 
 go 1.26.5
 

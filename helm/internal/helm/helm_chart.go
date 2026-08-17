@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gknguyen/litelens/plugins/helm/internal/dto"
+	"github.com/litelensapp/litelens-plugins/helm/internal/dto"
 	"helm.sh/helm/v3/pkg/helmpath"
 	"helm.sh/helm/v3/pkg/repo"
 	"sigs.k8s.io/yaml"
