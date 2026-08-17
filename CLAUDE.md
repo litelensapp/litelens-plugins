@@ -6,11 +6,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Official plugin repository for Litelens (a Kubernetes desktop app built with Wails). Each plugin is
 a self-contained subdirectory pairing a Go gRPC subprocess (backend) with a dynamically-loaded
-TypeScript/React ES module (frontend). Currently the repo holds one plugin: `helm/`.
+TypeScript/React ES module (frontend). Currently the repo holds one plugin: `plugins/helm/`.
 
-This is a pnpm workspace (`pnpm-workspace.yaml` includes `helm/frontend`) at the JS layer, and a
-single Go module (`github.com/litelensapp/litelens-plugins`) at the Go layer — `helm/` has its own
-nested `go.mod` (`.../litelens-plugins/helm`) since it depends on heavy packages (`helm.sh/helm/v3`,
+This is a pnpm workspace (`pnpm-workspace.yaml` includes `plugins/helm/frontend`) at the JS layer, and a
+single Go module (`github.com/litelensapp/litelens-plugins`) at the Go layer — `plugins/helm/` has its own
+nested `go.mod` (`.../litelens-plugins/plugins/helm`) since it depends on heavy packages (`helm.sh/helm/v3`,
 `k8s.io/client-go`) that shouldn't pollute the root module.
 
 ## Commands
@@ -22,19 +22,19 @@ pnpm install                # install JS workspace deps
 
 pnpm build:helm:fe          # build the helm frontend plugin bundle (tailwind + tsup)
 pnpm test:helm:fe           # run helm frontend tests (vitest) — requires @litelens/design-system
-pnpm test:helm:be           # go test -race -v ./... inside helm/
+pnpm test:helm:be           # go test -race -v ./... inside plugins/helm/
 
-# Single Go test (run inside helm/)
-cd helm && go test -race -run TestHelmAge ./internal/helm/...
+# Single Go test (run inside plugins/helm/)
+cd plugins/helm && go test -race -run TestHelmAge ./internal/helm/...
 
-# Single frontend test file (run inside helm/frontend)
-cd helm/frontend && pnpm vitest run src/components/release/__tests__/HelmReleaseStatusBadge.test.tsx
+# Single frontend test file (run inside plugins/helm/frontend)
+cd plugins/helm/frontend && pnpm vitest run src/components/release/__tests__/HelmReleaseStatusBadge.test.tsx
 
-# Build the Go plugin binary (used by both local dev and CI; see helm/scripts/build.sh)
-cd helm && GOOS=linux GOARCH=amd64 VERSION=1.2.3 ./scripts/build.sh
+# Build the Go plugin binary (used by both local dev and CI; see plugins/helm/scripts/build.sh)
+cd plugins/helm && GOOS=linux GOARCH=amd64 VERSION=1.2.3 ./scripts/build.sh
 
-# Mirror a full local plugin install (frontend dist + binary + tar.gz + metadata) under helm/.output/
-cd helm && node scripts/deploy-plugin-helm-local.mjs   # run build:helm:fe first
+# Mirror a full local plugin install (frontend dist + binary + tar.gz + metadata) under plugins/helm/.output/
+cd plugins/helm && node scripts/deploy-plugin-helm-local.mjs   # run build:helm:fe first
 ```
 
 **Frontend depends on `@litelens/design-system`**, which lives in the main litelens app repo, not
@@ -44,7 +44,7 @@ assuming it's broken.
 
 ## Architecture
 
-### Backend (`helm/internal/`) — gRPC plugin subprocess
+### Backend (`plugins/helm/internal/`) — gRPC plugin subprocess
 
 - `main.go` — process entrypoint. Builds a `dynamicClusterProvider` from `-kubeconfig`, starts the
   gRPC server on `-listen` (default `127.0.0.1:0`, auto-assigned port), then emits **exactly one**
@@ -56,7 +56,7 @@ assuming it's broken.
   provider (`dynamicClusterProvider` in `main.go`) additionally implements `MutableClusterProvider`
   so the host can re-target the active cluster context on every call via `SetActiveContext` — the
   host resends cluster context because the subprocess has no persistent session concept.
-  - `helm/internal/helm/rest/rest.go` — a `genericclioptions.RESTClientGetter` shim wired to a live
+  - `plugins/helm/internal/helm/rest/rest.go` — a `genericclioptions.RESTClientGetter` shim wired to a live
     `rest.Config` instead of re-reading kubeconfig from disk, so Helm SDK actions honor the currently
     active cluster.
 - `internal/server/` — wraps `Service` behind the gRPC `Plugin` service (`GetCapabilities`,
@@ -71,7 +71,7 @@ assuming it's broken.
     `plugin.pb.go` / `plugin_grpc.pb.go` after editing, and keep both copies of the `.proto` in sync
     manually.
 
-### Frontend (`helm/frontend/src/`) — dynamically-loaded ES module
+### Frontend (`plugins/helm/frontend/src/`) — dynamically-loaded ES module
 
 - Builds to a standalone ESM bundle (`tsup.config.ts`) loaded by the host via runtime `import()` —
   it is **not** part of the host app's own Vite build, so it can't use the host's `@wailsjs` alias
@@ -91,10 +91,10 @@ assuming it's broken.
 - `src/api/wailsBridge.ts` — every exported function calls
   `window.go.app.App.InvokePlugin("helm", method, JSON.stringify(payload))` and JSON-parses the
   response. `method` strings and payload field names here **must match** the `dispatch()` switch in
-  `helm/internal/server/grpc.go` exactly (including Go's PascalCase field names in the payload,
+  `plugins/helm/internal/server/grpc.go` exactly (including Go's PascalCase field names in the payload,
   since it's unmarshaled directly into anonymous Go structs). Adding a backend method means adding
   both a `dispatch()` case and a matching `wailsBridge.ts` export.
-- CSS: Tailwind is compiled to `src/generated-style.css` by `pnpm build:css` *before* `tsup` runs
+- CSS: Tailwind is compiled to `src/generated-style.css` by `pnpm build:css` _before_ `tsup` runs
   (`package.json`'s `build` script), then imported as a raw string in `src/pluginStyles.ts` and
   exported as `PLUGIN_STYLES` — the plugin ships its styles embedded in the JS bundle, not as a
   separate stylesheet asset. `loader: { ".css": "text" }` in `tsup.config.ts` must stay at the
@@ -106,8 +106,8 @@ assuming it's broken.
 
 ### Local install-mirroring script
 
-`helm/scripts/deploy-plugin-helm-local.mjs` reproduces what a real plugin install looks like under
-`~/.litelens/plugins/helm`, but entirely inside `helm/.output/` — never touches the real install
+`plugins/helm/scripts/deploy-plugin-helm-local.mjs` reproduces what a real plugin install looks like under
+`~/.litelens/plugins/helm`, but entirely inside `plugins/helm/.output/` — never touches the real install
 directory. Useful when testing changes against the main litelens app without going through the
 CI-built release artifact. It intentionally does **not** produce `helm.lock` — that's runtime state
 created only by the host app's plugin process loader while the plugin is actually running.

@@ -1,5 +1,8 @@
 packages:
-  - "helm/frontend"
+  - "plugins/helm/frontend"
+allowBuilds:
+  '@parcel/watcher': set this to true or false
+  esbuild: set this to true or false
 catalog:
   "@testing-library/jest-dom": ^6.9.1
   "@testing-library/react": ^16.3.2

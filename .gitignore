@@ -2,11 +2,11 @@ node_modules/
 .env
 .env.local
 
-helm/frontend/dist/
-helm/frontend/pkg/
-helm/frontend/src/generated-style.css
-helm/plugin
-helm/.output/
+plugins/helm/frontend/dist/
+plugins/helm/frontend/pkg/
+plugins/helm/frontend/src/generated-style.css
+plugins/helm/plugin
+plugins/helm/.output/
 
 coverage/
 coverage.out

@@ -10,11 +10,11 @@
   "scripts": {
     "build:helm": "bash plugins/helm/scripts/build.sh",
     "build:helm:fe": "pnpm --filter @litelens/helm-plugin-frontend run build",
-    "build:helm:local": "pnpm build:helm:fe && node ./helm/scripts/deploy-plugin-helm-local.mjs",
+    "build:helm:local": "pnpm build:helm:fe && node ./plugins/helm/scripts/deploy-plugin-helm-local.mjs",
     "test:helm:fe": "pnpm --filter @litelens/helm-plugin-frontend run test",
-    "test:helm:be": "cd helm && go test -race -v ./...",
+    "test:helm:be": "cd plugins/helm && go test -race -v ./...",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,css,md,yml}\"",
-    "lint": "eslint helm/frontend/src",
+    "lint": "eslint plugins/helm/frontend/src",
     "prepare": "husky"
   },
   "devDependencies": {

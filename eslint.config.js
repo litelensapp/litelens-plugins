@@ -6,9 +6,13 @@ import globals from "globals";
 import tseslint from "typescript-eslint";
 
 export default defineConfig([
-  globalIgnores(["**/dist/**", "helm/frontend/src/generated-style.css", "helm/.output/**"]),
+  globalIgnores([
+    "**/dist/**",
+    "plugins/helm/frontend/src/generated-style.css",
+    "plugins/helm/.output/**",
+  ]),
   {
-    files: ["helm/frontend/src/**/*.{ts,tsx}"],
+    files: ["plugins/helm/frontend/src/**/*.{ts,tsx}"],
     extends: [
       js.configs.recommended,
       tseslint.configs.recommended,
@@ -24,7 +28,10 @@ export default defineConfig([
     },
   },
   {
-    files: ["helm/frontend/src/**/__tests__/**/*.{ts,tsx}", "helm/frontend/src/**/*.test.{ts,tsx}"],
+    files: [
+      "plugins/helm/frontend/src/**/__tests__/**/*.{ts,tsx}",
+      "plugins/helm/frontend/src/**/*.test.{ts,tsx}",
+    ],
     rules: {
       "react-hooks/rules-of-hooks": "off",
       "@typescript-eslint/no-explicit-any": "off",
