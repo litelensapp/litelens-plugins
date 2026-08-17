@@ -8,8 +8,26 @@
   },
   "packageManager": "pnpm@11.10.0",
   "scripts": {
+    "build:helm": "bash plugins/helm/scripts/build.sh",
     "build:helm:fe": "pnpm --filter @litelens/helm-plugin-frontend run build",
+    "build:helm:local": "pnpm build:helm:fe && node ./helm/scripts/deploy-plugin-helm-local.mjs",
     "test:helm:fe": "pnpm --filter @litelens/helm-plugin-frontend run test",
-    "test:helm:be": "cd helm && go test -race -v ./..."
+    "test:helm:be": "cd helm && go test -race -v ./...",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,css,md,yml}\"",
+    "lint": "eslint helm/frontend/src",
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^26.2.0",
+    "eslint": "^10.8.1",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-react-refresh": "^0.5.4",
+    "globals": "^17.11.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.3.0",
+    "prettier": "^3.9.6",
+    "prettier-plugin-tailwindcss": "^0.8.1",
+    "typescript-eslint": "^8.67.0"
   }
 }

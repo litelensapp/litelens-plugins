@@ -2,7 +2,6 @@ import { vi, describe, it, expect, beforeEach, afterEach } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createElement } from "react";
-import { UnifiedTrayProvider } from "@/app/clusters/shared/components/trays/unified/UnifiedTrayContext";
 
 // ─── hoisted mocks ────────────────────────────────────────────────────────────
 
@@ -45,11 +44,7 @@ import { HelmChartDetailDrawer } from "../HelmChartDetailDrawer";
 function makeWrapper() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return ({ children }: { children: React.ReactNode }) =>
-    createElement(
-      QueryClientProvider,
-      { client },
-      createElement(UnifiedTrayProvider, null, children)
-    );
+    createElement(QueryClientProvider, { client }, children);
 }
 
 // ─── setup ────────────────────────────────────────────────────────────────────

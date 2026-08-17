@@ -1,0 +1,21 @@
+name: CD
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  release-version:
+    name: Release Version
+    uses: ./.github/workflows/job-release-semver.yml
+    secrets: inherit
+
+  build-helm:
+    name: Build Helm Plugin
+    needs: [release-version]
+    if: ${{ needs.release-version.result == 'success' }}
+    uses: ./.github/workflows/job-build-plugin-helm.yml
+    secrets: inherit
+    with:
+      version: ${{ needs.release-version.outputs.tag_name }}
