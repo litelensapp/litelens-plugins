@@ -16,7 +16,6 @@ type stubProvider struct {
 	activeContext       string
 	kubeconfigPath      string
 	setContextCallCount int
-	setContextErr       error
 }
 
 func (s *stubProvider) ActiveClients() (cs *kubernetes.Clientset, rc *rest.Config, activeContext string, kubeconfigPaths []string) {
@@ -35,7 +34,6 @@ func (s *stubProvider) SetActiveContext(contextName, kubeconfigPath string) erro
 	s.setContextCallCount++
 	s.activeContext = contextName
 	s.kubeconfigPath = kubeconfigPath
-	// For testing, always succeed - setContextErr is not used
 	return nil
 }
 

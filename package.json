@@ -14,7 +14,8 @@
     "test:helm:fe": "pnpm --filter @litelens/helm-plugin-frontend run test",
     "test:helm:be": "cd plugins/helm && go test -race -v ./...",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,css,md,yml}\"",
-    "lint": "eslint plugins/helm/frontend/src",
+    "lint:fe": "eslint plugins/helm/frontend/src",
+    "lint:be": "go vet -C plugins/helm ./... && go tool -C plugins/helm staticcheck ./...",
     "prepare": "husky"
   },
   "devDependencies": {

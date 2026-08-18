@@ -11,7 +11,9 @@ TypeScript/React ES module (frontend). Currently the repo holds one plugin: `plu
 This is a pnpm workspace (`pnpm-workspace.yaml` includes `plugins/helm/frontend`) at the JS layer, and a
 single Go module (`github.com/litelensapp/litelens-plugins`) at the Go layer — `plugins/helm/` has its own
 nested `go.mod` (`.../litelens-plugins/plugins/helm`) since it depends on heavy packages (`helm.sh/helm/v3`,
-`k8s.io/client-go`) that shouldn't pollute the root module.
+`k8s.io/client-go`) that shouldn't pollute the root module. `staticcheck` is declared as a `tool`
+directive in that `go.mod` (Go 1.26+ tool dependency) and invoked via `go tool staticcheck ./...`,
+not installed separately.
 
 ## Commands
 
@@ -23,6 +25,9 @@ pnpm install                # install JS workspace deps
 pnpm build:helm:fe          # build the helm frontend plugin bundle (tailwind + tsup)
 pnpm test:helm:fe           # run helm frontend tests (vitest) — requires @litelens/design-system
 pnpm test:helm:be           # go test -race -v ./... inside plugins/helm/
+
+pnpm lint:fe                # eslint plugins/helm/frontend/src
+pnpm lint:be                # go vet + staticcheck (go tool) inside plugins/helm/
 
 # Single Go test (run inside plugins/helm/)
 cd plugins/helm && go test -race -run TestHelmAge ./internal/helm/...
