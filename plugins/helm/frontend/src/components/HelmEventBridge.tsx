@@ -1,7 +1,8 @@
 import { FC } from "react";
+import { useHelmCleanupEvents } from "../hooks/async-events/useHelmCleanupEvents";
 import { useHelmInstallEvents } from "../hooks/async-events/useHelmInstallEvents";
 import { useHelmUpgradeEvents } from "../hooks/async-events/useHelmUpgradeEvents";
-import { useHelmCleanupEvents } from "../hooks/async-events/useHelmCleanupEvents";
+import { usePluginBackendRestarted } from "../hooks/async-events/usePluginBackendRestarted";
 
 /**
  * Mounted by the host as soon as the plugin is READY (regardless of which
@@ -12,5 +13,6 @@ export const HelmEventBridge: FC = () => {
   useHelmInstallEvents();
   useHelmUpgradeEvents();
   useHelmCleanupEvents();
+  usePluginBackendRestarted();
   return null;
 };

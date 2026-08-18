@@ -1,6 +1,5 @@
-// Calls the main app's Wails-bound App struct through the generic InvokePlugin
-// bridge that Wails injects into the webview at runtime. This plugin now uses
-// the same gRPC Invoke protocol as any subprocess plugin would.
+// Calls the Helm plugin's HTTP backend directly over localhost,
+// replacing the previous Wails InvokePlugin gRPC relay.
 //
 // The plugin frontend builds to a standalone ES module (see tsup.config.ts)
 // and is loaded via dynamic import() from a separate bundle — it cannot
@@ -23,38 +22,101 @@ declare global {
     go: {
       app: {
         App: {
-          InvokePlugin(pluginID: string, method: string, payloadJson: string): Promise<string>;
+          GetPluginBackendAddr(pluginID: string): Promise<string>;
         };
       };
     };
   }
 }
 
-const App = () => window.go.app.App;
+// Module-level cache for backend address
+let backendAddr: string | null = null;
+let addressFetchPromise: Promise<string> | null = null;
 
-// Helper to invoke a plugin method and parse the JSON response
-const invoke = async <T>(method: string, payload: unknown): Promise<T> => {
-  const raw = await App().InvokePlugin("helm", method, JSON.stringify(payload));
-  return JSON.parse(raw as string) as T;
+export type PluginError = {
+  code: string;
+  message: string;
 };
 
-export const ListHelmCharts = (): Promise<HelmChart[]> => invoke<HelmChart[]>("ListHelmCharts", {});
+export function invalidateBackendAddrCache(): void {
+  backendAddr = null;
+  addressFetchPromise = null;
+}
+
+async function getBackendAddr(): Promise<string> {
+  if (backendAddr) return backendAddr;
+  if (addressFetchPromise) return addressFetchPromise;
+  addressFetchPromise = window.go.app.App.GetPluginBackendAddr("helm")
+    .then((addr) => {
+      backendAddr = addr;
+      addressFetchPromise = null;
+      return addr;
+    })
+    .catch((err) => {
+      addressFetchPromise = null;
+      throw err;
+    });
+  return addressFetchPromise;
+}
+
+async function doFetch<T>(method: string, payload: unknown, addr: string): Promise<T> {
+  const response = await fetch(`http://${addr}/api/helm/${method}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) {
+    const errBody = (await response.json()) as PluginError;
+    throw errBody;
+  }
+  return (await response.json()) as T;
+}
+
+const fetchWithRetry = async <T>(method: string, payload: unknown): Promise<T> => {
+  const addr = await getBackendAddr();
+  try {
+    return await doFetch<T>(method, payload, addr);
+  } catch (err) {
+    // Only a thrown PluginError (backend responded, just with an error body) should NOT retry.
+    // A raised TypeError from fetch() itself (network/connection failure) means the cached
+    // address is stale -> refetch once and retry once.
+    if (err instanceof TypeError) {
+      invalidateBackendAddrCache();
+      try {
+        const freshAddr = await getBackendAddr();
+        return await doFetch<T>(method, payload, freshAddr);
+      } catch {
+        throw {
+          code: "PLUGIN_UNAVAILABLE",
+          message: "Plugin backend unreachable",
+        } as PluginError;
+      }
+    }
+    throw err;
+  }
+};
+
+export const ListHelmCharts = (): Promise<HelmChart[]> =>
+  fetchWithRetry<HelmChart[]>("listCharts", {});
 
 export const ListHelmRepositories = (): Promise<HelmRepository[]> =>
-  invoke<HelmRepository[]>("ListHelmRepositories", {});
+  fetchWithRetry<HelmRepository[]>("listRepositories", {});
 
 export const ListHelmReleases = (namespace: string): Promise<HelmRelease[]> =>
-  invoke<HelmRelease[]>("ListHelmReleases", { Namespace: namespace });
+  fetchWithRetry<HelmRelease[]>("listReleases", { Namespace: namespace });
 
 export const ListHelmChartVersions = (repository: string, chartName: string): Promise<string[]> =>
-  invoke<string[]>("ListHelmChartVersions", { Repository: repository, ChartName: chartName });
+  fetchWithRetry<string[]>("listChartVersions", {
+    Repository: repository,
+    ChartName: chartName,
+  });
 
 export const GetHelmChartDetail = (
   repository: string,
   chartName: string,
   version: string
 ): Promise<HelmChartDetail> =>
-  invoke<HelmChartDetail>("GetHelmChartDetail", {
+  fetchWithRetry<HelmChartDetail>("getChartDetail", {
     Repository: repository,
     ChartName: chartName,
     Version: version,
@@ -65,7 +127,7 @@ export const GetArtifactHubReadme = (
   chartName: string,
   version: string
 ): Promise<string> =>
-  invoke<string>("GetArtifactHubReadme", {
+  fetchWithRetry<string>("getArtifactHubReadme", {
     Repository: repo,
     ChartName: chartName,
     Version: version,
@@ -79,7 +141,7 @@ export const InstallHelmChart = (
   version: string,
   valuesYAML: string
 ): Promise<void> =>
-  invoke<void>("InstallHelmChart", {
+  fetchWithRetry<void>("installChart", {
     Namespace: namespace,
     ReleaseName: releaseName,
     Repository: repository,
@@ -96,7 +158,7 @@ export const UpgradeHelmRelease = (
   version: string,
   valuesYAML: string
 ): Promise<void> =>
-  invoke<void>("UpgradeHelmRelease", {
+  fetchWithRetry<void>("upgradeRelease", {
     Namespace: namespace,
     ReleaseName: releaseName,
     Repository: repository,
@@ -106,19 +168,22 @@ export const UpgradeHelmRelease = (
   });
 
 export const DeleteHelmRelease = (namespace: string, releaseName: string): Promise<void> =>
-  invoke<void>("DeleteHelmRelease", { Namespace: namespace, ReleaseName: releaseName });
+  fetchWithRetry<void>("deleteRelease", { Namespace: namespace, ReleaseName: releaseName });
 
 export const DeleteHelmReleaseWithCleanup = (
   namespace: string,
   releaseName: string
 ): Promise<void> =>
-  invoke<void>("DeleteHelmReleaseWithCleanup", { Namespace: namespace, ReleaseName: releaseName });
+  fetchWithRetry<void>("deleteReleaseWithCleanup", {
+    Namespace: namespace,
+    ReleaseName: releaseName,
+  });
 
 export const GetHelmReleaseByName = (
   namespace: string,
   releaseName: string
 ): Promise<HelmReleaseDetail> =>
-  invoke<HelmReleaseDetail>("GetHelmReleaseByName", {
+  fetchWithRetry<HelmReleaseDetail>("getReleaseByName", {
     Namespace: namespace,
     ReleaseName: releaseName,
   });
@@ -128,7 +193,7 @@ export const GetHelmChartValues = (
   chartName: string,
   version: string
 ): Promise<string> =>
-  invoke<string>("GetHelmChartValues", {
+  fetchWithRetry<string>("getChartValues", {
     Repository: repository,
     ChartName: chartName,
     Version: version,
@@ -138,7 +203,7 @@ export const GetHelmReleaseHistory = (
   namespace: string,
   releaseName: string
 ): Promise<HelmReleaseRevisionHistory[]> =>
-  invoke<HelmReleaseRevisionHistory[]>("GetHelmReleaseHistory", {
+  fetchWithRetry<HelmReleaseRevisionHistory[]>("getReleaseHistory", {
     Namespace: namespace,
     ReleaseName: releaseName,
   });
@@ -148,7 +213,7 @@ export const RollbackHelmRelease = (
   releaseName: string,
   revision: number
 ): Promise<void> =>
-  invoke<void>("RollbackHelmRelease", {
+  fetchWithRetry<void>("rollbackRelease", {
     Namespace: namespace,
     ReleaseName: releaseName,
     Revision: revision,
