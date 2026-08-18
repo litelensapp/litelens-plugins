@@ -1,7 +1,7 @@
-// Package rest provides a genericclioptions.RESTClientGetter implementation
-// backed by an existing rest.Config, so Helm actions can be wired to the
-// active cluster context without re-reading kubeconfig from disk.
-package rest
+// Package api provides HTTP handlers plus a genericclioptions.RESTClientGetter
+// implementation backed by an existing rest.Config, so Helm actions can be wired to
+// the active cluster context without re-reading kubeconfig from disk.
+package api
 
 import (
 	"k8s.io/apimachinery/pkg/api/meta"

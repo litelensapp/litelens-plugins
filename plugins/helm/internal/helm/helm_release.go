@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
+	helmrest "github.com/litelensapp/litelens-plugins/plugins/helm/internal/api"
 	"github.com/litelensapp/litelens-plugins/plugins/helm/internal/dto"
-	helmrest "github.com/litelensapp/litelens-plugins/plugins/helm/internal/helm/rest"
 	"github.com/litelensapp/litelens-plugins/plugins/helm/internal/kube"
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/helmpath"

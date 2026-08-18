@@ -3,9 +3,11 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"net"
+	"net/http"
 	"os"
 	"strconv"
 	"sync"
@@ -15,6 +17,7 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 
+	"github.com/litelensapp/litelens-plugins/plugins/helm/internal/api"
 	helmgo "github.com/litelensapp/litelens-plugins/plugins/helm/internal/helm"
 	"github.com/litelensapp/litelens-plugins/plugins/helm/internal/server"
 )
@@ -36,10 +39,12 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Create helm service
-	svc := helmgo.NewService(cp, func(ctx context.Context, eventName string, data any) {
+	// Create helm service, wrapped so business calls and cluster-context switches
+	// (pushed via gRPC SetClusterContext and/or the new HTTP /internal/setClusterContext)
+	// never race on the underlying k8s client.
+	svc := helmgo.NewLockedService(helmgo.NewService(cp, func(ctx context.Context, eventName string, data any) {
 		// No-op event emitter for plugin mode
-	})
+	}))
 
 	// Start gRPC server
 	grpcSrv, ln, err := server.NewGRPCServer(svc, *listen)
@@ -63,11 +68,42 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Start HTTP server (additive; localhost-only, same-host different port from gRPC —
+	// no CORS headers needed since this isn't a cross-origin browser request in the CORS
+	// sense, just a same-host fetch() from the Wails webview to a different local port,
+	// and the webview enforces no CSP restricting that).
+	httpLn, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error: listen for HTTP: %v\n", err)
+		os.Exit(1)
+	}
+	mux := http.NewServeMux()
+	api.NewHandler(svc).RegisterRoutes(mux)
+	httpSrv := &http.Server{Handler: mux}
+	go func() {
+		if err := httpSrv.Serve(httpLn); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			fmt.Fprintf(os.Stderr, "error: http serve: %v\n", err)
+		}
+	}()
+	defer httpSrv.Close()
+
+	_, httpPortStr, err := net.SplitHostPort(httpLn.Addr().String())
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error: parse http listener address: %v\n", err)
+		os.Exit(1)
+	}
+	httpPort, err := strconv.Atoi(httpPortStr)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error: convert http port to int: %v\n", err)
+		os.Exit(1)
+	}
+
 	// Handshake: emit exactly one JSON line to stdout on readiness
 	handshake := map[string]any{
 		"type":      "READY",
 		"version":   Version,
 		"grpcPort":  grpcPort,
+		"httpPort":  httpPort,
 		"pid":       os.Getpid(),
 		"timestamp": time.Now().Format(time.RFC3339),
 	}
