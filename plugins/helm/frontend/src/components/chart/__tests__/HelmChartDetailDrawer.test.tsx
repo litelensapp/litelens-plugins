@@ -25,18 +25,18 @@ vi.mock("../../../hooks/data-mutation/useInstallHelmChart", () => ({
   useInstallHelmChart: vi.fn(),
 }));
 
-vi.mock("../../../HelmContext", () => ({
-  useHelmContext: vi.fn(),
+vi.mock("@litelens/core", () => ({
+  useClusterWideAPI: vi.fn(),
 }));
 
 // ─── imports after mocks ──────────────────────────────────────────────────────
 
+import { useClusterWideAPI } from "@litelens/core";
 import { useGetHelmChartVersions } from "../../../hooks/data-access/useGetHelmChartVersions";
 import { useGetHelmChartDetail } from "../../../hooks/data-access/useGetHelmChartDetail";
 import { useGetArtifactHubReadme } from "../../../hooks/data-access/useGetArtifactHubReadme";
 import { useGetHelmChartValues } from "../../../hooks/data-access/useGetHelmChartValues";
 import { useInstallHelmChart } from "../../../hooks/data-mutation/useInstallHelmChart";
-import { useHelmContext } from "../../../HelmContext";
 import { HelmChartDetailDrawer } from "../HelmChartDetailDrawer";
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
@@ -79,18 +79,13 @@ beforeEach(() => {
     mutate: vi.fn(),
     isPending: false,
   });
-  vi.mocked(useHelmContext).mockReturnValue({
+  vi.mocked(useClusterWideAPI).mockReturnValue({
     activeContext: "default",
-    namespace: "default",
+    activeNamespaces: ["default"],
+    activeResource: "helm-charts",
     onNavigateToView: vi.fn(),
-    onToggleNamespaceDetail: vi.fn(),
-    selectedHelmChartName: null,
-    selectedHelmChartRepo: null,
-    onToggleHelmChartDetail: vi.fn(),
-    selectedHelmReleaseName: null,
-    selectedHelmReleaseNamespace: null,
-    onToggleHelmReleaseDetail: vi.fn(),
-    namespaces: [],
+    availableNamespaces: [],
+    resourceLinks: {},
     unifiedTray: {
       tabs: [],
       activeTabId: null,
@@ -103,8 +98,7 @@ beforeEach(() => {
       closeAll: vi.fn(),
       setSnapPoint: vi.fn(),
     },
-    getResourceLinks: vi.fn(() => []),
-  } as unknown as ReturnType<typeof useHelmContext>);
+  } as unknown as ReturnType<typeof useClusterWideAPI>);
 });
 
 // ─── tests ────────────────────────────────────────────────────────────────────

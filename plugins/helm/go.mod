@@ -3,12 +3,12 @@ module github.com/litelensapp/litelens-plugins/plugins/helm
 go 1.26.5
 
 require (
-	google.golang.org/grpc v1.82.1
-	google.golang.org/protobuf v1.36.12-0.20260120151049-f2248ac996af
+	github.com/litelensapp/litelens/packages/core v0.1.0
+	google.golang.org/grpc v1.83.0
 	helm.sh/helm/v3 v3.21.2
-	k8s.io/api v0.36.2
-	k8s.io/apimachinery v0.36.2
-	k8s.io/client-go v0.36.2
+	k8s.io/api v0.36.3
+	k8s.io/apimachinery v0.36.3
+	k8s.io/client-go v0.36.3
 	sigs.k8s.io/yaml v1.6.0
 )
 
@@ -99,7 +99,8 @@ require (
 	golang.org/x/text v0.38.0 // indirect
 	golang.org/x/time v0.14.0 // indirect
 	golang.org/x/tools v0.45.0 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20260414002931-afd174a4e478 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20260526163538-3dc84a4a5aaa // indirect
+	google.golang.org/protobuf v1.36.12 // indirect
 	gopkg.in/evanphx/json-patch.v4 v4.13.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
@@ -117,7 +118,15 @@ require (
 	sigs.k8s.io/kustomize/api v0.21.1 // indirect
 	sigs.k8s.io/kustomize/kyaml v0.21.1 // indirect
 	sigs.k8s.io/randfill v1.0.0 // indirect
-	sigs.k8s.io/structured-merge-diff/v6 v6.3.2 // indirect
+	sigs.k8s.io/structured-merge-diff/v6 v6.3.3 // indirect
 )
 
 tool honnef.co/go/tools/cmd/staticcheck
+
+// TEMPORARY, local-testing only: no packages/core/vX.Y.Z tag has been published yet by the
+// litelens host repo, so there is no real versioned module to depend on. This replace directive
+// (kept in sync with the root go.work's `use` directive) substitutes a sibling `litelens` checkout
+// on disk. Building this module without that sibling checkout present will fail to resolve
+// github.com/litelensapp/litelens/packages/core. See .claude/memory/go_work_removal_todo.md for the
+// removal sequence once a real tag exists.
+replace github.com/litelensapp/litelens/packages/core => ../../../litelens/packages/core

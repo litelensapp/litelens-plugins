@@ -59,7 +59,7 @@ beforeEach(() => {
   (useGetHelmRepositories as ReturnType<typeof vi.fn>).mockReturnValue({ data: [] });
   vi.mocked(useHelmContext).mockReturnValue({
     activeContext: "default",
-    namespace: "default",
+    activeNamespaces: ["default"],
     selectedHelmChartName: null,
     selectedHelmChartRepo: null,
     onToggleHelmChartDetail: onToggleHelmChartDetailMock,
@@ -67,10 +67,8 @@ beforeEach(() => {
     selectedHelmReleaseNamespace: null,
     onToggleHelmReleaseDetail: vi.fn(),
     onNavigateToView: vi.fn(),
-    onToggleNamespaceDetail: vi.fn(),
-    namespaces: [],
+    availableNamespaces: [],
     unifiedTray: null,
-    getResourceLinks: vi.fn(() => []),
   } as unknown as ReturnType<typeof useHelmContext>);
 });
 

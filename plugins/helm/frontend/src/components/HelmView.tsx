@@ -1,44 +1,28 @@
-import type { SharedNamespaceContext, SharedUnifiedTrayContext } from "@litelens/design-system";
+import { useClusterWideAPI } from "@litelens/core";
 import { FC } from "react";
+import { HELM_NAV_ENTRY, HELM_TRAY_FAMILIES } from "../const";
 import { HelmProvider } from "../HelmContext";
+import { useRegisterHelmEvents } from "../hooks/async-events/useRegisterHelmEvents";
 import { HelmChartsView } from "./chart/HelmChartsView";
 import { HelmReleasesView } from "./release/HelmReleasesView";
 
-interface HelmViewProps {
-  activeResource: string;
-  activeContext: string;
-  namespace: string;
-  onNavigateToView: (view: string) => void;
-  onToggleNamespaceDetail: (name?: string) => void;
-  namespaces: SharedNamespaceContext[];
-  unifiedTray: SharedUnifiedTrayContext | null;
-  getResourceLinks: (resource: {
-    kind: string;
-    name: string;
-    namespace?: string;
-  }) => Array<{ label: string; href: string }>;
-}
+/**
+ * Mounted by the host for every non-uninstalled plugin (hidden when inactive
+ * — see litelens's PluginResourceView), so this runs regardless of whether
+ * the user has navigated to a Helm view yet. Registering the nav entry and
+ * tray families here, on the same component the host already dynamically
+ * imports as PluginView, means the host never needs a separate nav/tray-only
+ * contract/export.
+ */
+export const HelmView: FC = () => {
+  const { activeResource, useRegisterNavEntry, useRegisterTrayFamilies } = useClusterWideAPI();
 
-export const HelmView: FC<HelmViewProps> = ({
-  activeResource,
-  activeContext,
-  namespace,
-  onNavigateToView,
-  onToggleNamespaceDetail,
-  namespaces,
-  unifiedTray,
-  getResourceLinks,
-}) => {
+  useRegisterNavEntry("helm", "Helm", HELM_NAV_ENTRY);
+  useRegisterTrayFamilies("helm", HELM_TRAY_FAMILIES);
+  useRegisterHelmEvents();
+
   return (
-    <HelmProvider
-      activeContext={activeContext}
-      namespace={namespace}
-      onNavigateToView={onNavigateToView}
-      onToggleNamespaceDetail={onToggleNamespaceDetail}
-      namespaces={namespaces}
-      unifiedTray={unifiedTray}
-      getResourceLinks={getResourceLinks}
-    >
+    <HelmProvider>
       {activeResource === "helm-charts" && <HelmChartsView />}
       {activeResource === "helm-releases" && <HelmReleasesView />}
     </HelmProvider>

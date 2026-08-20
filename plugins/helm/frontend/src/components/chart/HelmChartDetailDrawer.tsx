@@ -1,3 +1,4 @@
+import { useClusterWideAPI } from "@litelens/core";
 import {
   AnnotationBadge,
   Button,
@@ -7,7 +8,6 @@ import {
   ScrollArea,
 } from "@litelens/design-system";
 import { FC, Fragment, useDeferredValue, useState } from "react";
-import { useHelmContext } from "../../HelmContext";
 import { useGetArtifactHubReadme } from "../../hooks/data-access/useGetArtifactHubReadme";
 import { useGetHelmChartDetail } from "../../hooks/data-access/useGetHelmChartDetail";
 import { useGetHelmChartVersions } from "../../hooks/data-access/useGetHelmChartVersions";
@@ -189,7 +189,7 @@ const HelmChartDetailDrawerBody: FC<{ chartName: string; repository: string }> =
   chartName,
   repository,
 }) => {
-  const { activeContext, onNavigateToView, unifiedTray } = useHelmContext();
+  const { activeContext, onNavigateToView, unifiedTray } = useClusterWideAPI();
 
   const [manualVersion, setManualVersion] = useState("");
   const { data: versions = [], isLoading: isVersionsLoading } = useGetHelmChartVersions(

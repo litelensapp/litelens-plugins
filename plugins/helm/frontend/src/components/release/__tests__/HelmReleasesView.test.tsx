@@ -6,7 +6,7 @@ import type { HelmRelease } from "../../../api/resources";
 
 // ─── hoisted mocks ────────────────────────────────────────────────────────────
 
-const onToggleNamespaceDetailMock = vi.hoisted(() => vi.fn());
+const resourceLinksNamespaceMock = vi.hoisted(() => vi.fn());
 const openTabMock = vi.hoisted(() => vi.fn());
 
 vi.mock("../../../hooks/data-access/useGetHelmReleases", () => ({
@@ -17,8 +17,31 @@ vi.mock("../../../HelmContext", () => ({
   useHelmContext: vi.fn(),
 }));
 
+vi.mock("@litelens/core", () => ({
+  useClusterWideAPI: vi.fn(() => ({
+    activeContext: "ctx",
+    activeNamespaces: [],
+    onNavigateToView: vi.fn(),
+    availableNamespaces: [],
+    resourceLinks: { namespace: resourceLinksNamespaceMock },
+    unifiedTray: {
+      tabs: [],
+      activeTabId: null,
+      collapsed: true,
+      expanded: false,
+      snapPoint: "36px",
+      openTab: openTabMock,
+      setActiveTab: vi.fn(),
+      closeTab: vi.fn(),
+      closeAll: vi.fn(),
+      setSnapPoint: vi.fn(),
+    },
+  })),
+}));
+
 // ─── imports after mocks ──────────────────────────────────────────────────────
 
+import { useClusterWideAPI } from "@litelens/core";
 import { useGetHelmReleases } from "../../../hooks/data-access/useGetHelmReleases";
 import { useHelmContext } from "../../../HelmContext";
 import { HelmReleasesView } from "../HelmReleasesView";
@@ -58,30 +81,12 @@ beforeEach(() => {
   vi.clearAllMocks();
   (useGetHelmReleases as ReturnType<typeof vi.fn>).mockReturnValue({ data: [] });
   (useHelmContext as ReturnType<typeof vi.fn>).mockReturnValue({
-    activeContext: "ctx",
-    namespace: "",
     selectedHelmChartName: null,
     selectedHelmChartRepo: null,
     onToggleHelmChartDetail: vi.fn(),
     selectedHelmReleaseName: null,
     selectedHelmReleaseNamespace: null,
     onToggleHelmReleaseDetail: vi.fn(),
-    onToggleNamespaceDetail: onToggleNamespaceDetailMock,
-    onNavigateToView: vi.fn(),
-    namespaces: [],
-    unifiedTray: {
-      tabs: [],
-      activeTabId: null,
-      collapsed: true,
-      expanded: false,
-      snapPoint: "36px",
-      openTab: openTabMock,
-      setActiveTab: vi.fn(),
-      closeTab: vi.fn(),
-      closeAll: vi.fn(),
-      setSnapPoint: vi.fn(),
-    },
-    getResourceLinks: vi.fn(() => []),
   });
 });
 
@@ -219,16 +224,21 @@ describe("HelmReleasesView", () => {
     expect(screen.getAllByText("clickable-release").length).toBeGreaterThan(0);
   });
 
-  it("passes context and namespace to useGetHelmReleases", () => {
-    (useHelmContext as ReturnType<typeof vi.fn>).mockReturnValue({
+  it("passes context and namespaces to useGetHelmReleases", () => {
+    (useClusterWideAPI as ReturnType<typeof vi.fn>).mockReturnValue({
       activeContext: "my-ctx",
-      namespace: "kube-system",
-      onToggleHelmReleaseDetail: vi.fn(),
-      onToggleNamespaceDetail: onToggleNamespaceDetailMock,
+      activeNamespaces: ["kube-system"],
+      onNavigateToView: vi.fn(),
+      availableNamespaces: [],
+      resourceLinks: { namespace: resourceLinksNamespaceMock },
+      unifiedTray: null,
     });
 
     render(<HelmReleasesView />, { wrapper: makeWrapper() });
 
-    expect(useGetHelmReleases).toHaveBeenCalledWith("my-ctx", "kube-system");
+    expect(useGetHelmReleases).toHaveBeenCalledWith({
+      context: "my-ctx",
+      namespaces: ["kube-system"],
+    });
   });
 });

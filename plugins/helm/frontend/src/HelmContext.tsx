@@ -1,10 +1,6 @@
 import { createContext, FC, ReactNode, use, useMemo, useReducer } from "react";
-import type { SharedNamespaceContext, SharedUnifiedTrayContext } from "@litelens/design-system";
 
 interface HelmContextValue {
-  activeContext: string;
-  namespace: string;
-
   selectedHelmChartName: string | null;
   selectedHelmChartRepo: string | null;
   onToggleHelmChartDetail: (repo?: string, name?: string) => void;
@@ -12,18 +8,6 @@ interface HelmContextValue {
   selectedHelmReleaseName: string | null;
   selectedHelmReleaseNamespace: string | null;
   onToggleHelmReleaseDetail: (namespace?: string, name?: string) => void;
-
-  onNavigateToView: (view: string) => void;
-  onToggleNamespaceDetail: (name?: string) => void;
-
-  // Injected from the parent app context
-  namespaces: SharedNamespaceContext[];
-  unifiedTray: SharedUnifiedTrayContext | null;
-  getResourceLinks: (resource: {
-    kind: string;
-    name: string;
-    namespace?: string;
-  }) => Array<{ label: string; href: string }>;
 }
 
 interface HelmState {
@@ -71,36 +55,13 @@ export const useHelmContext = (): HelmContextValue => {
 
 interface HelmProviderProps {
   children: ReactNode;
-  activeContext: string;
-  namespace: string;
-  onNavigateToView: (view: string) => void;
-  onToggleNamespaceDetail: (name?: string) => void;
-  namespaces: SharedNamespaceContext[];
-  unifiedTray: SharedUnifiedTrayContext | null;
-  getResourceLinks: (resource: {
-    kind: string;
-    name: string;
-    namespace?: string;
-  }) => Array<{ label: string; href: string }>;
 }
 
-export const HelmProvider: FC<HelmProviderProps> = ({
-  children,
-  activeContext,
-  namespace,
-  onNavigateToView,
-  onToggleNamespaceDetail,
-  namespaces,
-  unifiedTray,
-  getResourceLinks,
-}) => {
+export const HelmProvider: FC<HelmProviderProps> = ({ children }) => {
   const [state, dispatch] = useReducer(helmReducer, initialState);
 
   const ctxValue = useMemo<HelmContextValue>(
     () => ({
-      activeContext,
-      namespace,
-
       selectedHelmChartName: state.selectedHelmChartName,
       selectedHelmChartRepo: state.selectedHelmChartRepo,
       onToggleHelmChartDetail: (repo, name) => dispatch({ type: "toggleHelmChart", repo, name }),
@@ -109,24 +70,8 @@ export const HelmProvider: FC<HelmProviderProps> = ({
       selectedHelmReleaseNamespace: state.selectedHelmReleaseNamespace,
       onToggleHelmReleaseDetail: (namespace, name) =>
         dispatch({ type: "toggleHelmRelease", namespace, name }),
-
-      onNavigateToView,
-      onToggleNamespaceDetail,
-
-      namespaces,
-      unifiedTray,
-      getResourceLinks,
     }),
-    [
-      state,
-      activeContext,
-      namespace,
-      onNavigateToView,
-      onToggleNamespaceDetail,
-      namespaces,
-      unifiedTray,
-      getResourceLinks,
-    ]
+    [state]
   );
 
   return <HelmCtx.Provider value={ctxValue}>{children}</HelmCtx.Provider>;

@@ -1,3 +1,4 @@
+import { useClusterWideAPI } from "@litelens/core";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -52,7 +53,7 @@ const HelmReleaseTableCtaButtons: FC<HelmReleaseTableCtaButtonsProps> = ({
   valuesYAML,
   revision,
 }) => {
-  const { activeContext, unifiedTray } = useHelmContext();
+  const { activeContext, unifiedTray } = useClusterWideAPI();
 
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [cleanupModalOpen, setCleanupModalOpen] = useState(false);
@@ -155,18 +156,17 @@ const HelmReleaseTableCtaButtons: FC<HelmReleaseTableCtaButtonsProps> = ({
 };
 
 export const HelmReleasesView: FC = () => {
-  const {
-    activeContext,
-    namespace,
-    selectedHelmReleaseName,
-    selectedHelmReleaseNamespace,
-    onToggleHelmReleaseDetail,
-    onToggleNamespaceDetail,
-  } = useHelmContext();
+  const { selectedHelmReleaseName, selectedHelmReleaseNamespace, onToggleHelmReleaseDetail } =
+    useHelmContext();
+  const { activeContext, activeNamespaces, resourceLinks } = useClusterWideAPI();
 
   const [search, setSearch] = useState("");
 
-  const { data: raw = [], isLoading } = useGetHelmReleases(activeContext, namespace);
+  const { data: raw = [], isLoading } = useGetHelmReleases({
+    context: activeContext,
+    namespaces: activeNamespaces,
+  });
+  const showNamespaceColumn = activeNamespaces.length !== 1;
 
   const releases = raw
     .filter(
@@ -199,7 +199,7 @@ export const HelmReleasesView: FC = () => {
         <TableHeader className="z-sticky sticky top-0 bg-background">
           <TableRow>
             <TableHead>Name</TableHead>
-            {!namespace && <TableHead>Namespace</TableHead>}
+            {showNamespaceColumn && <TableHead>Namespace</TableHead>}
             <TableHead>Chart</TableHead>
             <TableHead>Chart Version</TableHead>
             <TableHead>App Version</TableHead>
@@ -213,7 +213,7 @@ export const HelmReleasesView: FC = () => {
           {isLoading ? (
             <TableSkeletonLoader
               rows={5}
-              columns={namespace ? 7 : 8}
+              columns={showNamespaceColumn ? 8 : 7}
               includeCheckbox={false}
               columnWidths={[
                 "w-[65%]",
@@ -228,7 +228,7 @@ export const HelmReleasesView: FC = () => {
             />
           ) : releases.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={namespace ? 8 : 9} className="px-0 py-0">
+              <TableCell colSpan={showNamespaceColumn ? 9 : 8} className="px-0 py-0">
                 <EmptyState
                   icon={<RocketIcon className="size-8" />}
                   title="No Helm Releases"
@@ -244,12 +244,12 @@ export const HelmReleasesView: FC = () => {
                 className="cursor-pointer hover:bg-muted/50"
               >
                 <TableCell className="font-mono text-xs">{rel.Name}</TableCell>
-                {!namespace && (
+                {showNamespaceColumn && (
                   <TableCell className="text-xs">
                     <ResourceLink
                       onClick={(e) => {
                         e.stopPropagation();
-                        onToggleNamespaceDetail(rel.Namespace);
+                        resourceLinks.namespace("", rel.Namespace);
                       }}
                     >
                       {rel.Namespace}

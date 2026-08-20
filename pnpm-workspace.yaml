@@ -15,3 +15,12 @@ catalog:
   jsdom: ^29.1.1
   typescript: ^6.0.3
   vitest: ^4.1.10
+# @litelens/core versions below were just published to the local verdaccio test registry (see
+# .npmrc), so pnpm's minimumReleaseAge check would otherwise flag them as suspiciously fresh.
+# Remove this exclusion once @litelens/core is a real, aged npm release.
+minimumReleaseAgeExclude:
+  - '@litelens/core@0.9.2'
+  - '@litelens/core@0.9.3'
+  - '@litelens/core@0.9.4'
+  - '@litelens/core@0.9.5'
+  - '@litelens/core@0.9.6'

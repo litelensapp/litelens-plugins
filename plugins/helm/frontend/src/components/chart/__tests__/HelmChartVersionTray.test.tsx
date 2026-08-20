@@ -17,6 +17,18 @@ vi.mock("../../../hooks/data-mutation/useInstallHelmChart", () => ({
   useInstallHelmChart: vi.fn(),
 }));
 
+vi.mock("@litelens/core", () => ({
+  useClusterWideAPI: vi.fn(() => ({
+    activeContext: "ctx-test",
+    activeNamespaces: [],
+    activeResource: "helm-charts",
+    availableNamespaces: [],
+    onNavigateToView: vi.fn(),
+    resourceLinks: {},
+    unifiedTray: null,
+  })),
+}));
+
 // ─── imports after mocks ──────────────────────────────────────────────────────
 
 import { useGetHelmChartValues } from "../../../hooks/data-access/useGetHelmChartValues";
@@ -33,19 +45,7 @@ function makeWrapper() {
     createElement(
       QueryClientProvider,
       { client },
-      createElement(
-        HelmProvider,
-        {
-          activeContext: "ctx-test",
-          namespace: "default",
-          onNavigateToView: vi.fn(),
-          onToggleNamespaceDetail: vi.fn(),
-          namespaces: [],
-          unifiedTray: null,
-          getResourceLinks: () => [],
-        },
-        children
-      )
+      createElement(HelmProvider, { children }, children)
     );
 }
 
@@ -243,8 +243,8 @@ describe("HelmChartVersionTray", () => {
     });
 
     const searchInput = screen.getByLabelText("Search YAML");
-    expect(searchInput).toBeInTheDocument();
-    expect(searchInput).toHaveAttribute("placeholder", "Search…");
+    expect(searchInput).toBeTruthy();
+    expect(searchInput.getAttribute("placeholder")).toBe("Search…");
   });
 
   it("shows match count when typing a matching term", async () => {
@@ -264,7 +264,7 @@ describe("HelmChartVersionTray", () => {
 
     // Wait for the match count to appear
     await waitFor(() => {
-      expect(screen.getByText(/1\/2/)).toBeInTheDocument();
+      expect(screen.getByText(/1\/2/)).toBeTruthy();
     });
   });
 
@@ -285,7 +285,7 @@ describe("HelmChartVersionTray", () => {
 
     // Wait for the '0' to appear
     await waitFor(() => {
-      expect(screen.getByText("0")).toBeInTheDocument();
+      expect(screen.getByText("0")).toBeTruthy();
     });
   });
 
@@ -308,7 +308,7 @@ describe("HelmChartVersionTray", () => {
 
     // Verify first match is shown
     await waitFor(() => {
-      expect(screen.getByText(/1\/2/)).toBeInTheDocument();
+      expect(screen.getByText(/1\/2/)).toBeTruthy();
     });
 
     // Press Enter to navigate to next match
@@ -316,7 +316,7 @@ describe("HelmChartVersionTray", () => {
 
     // Verify we're now on the second match
     await waitFor(() => {
-      expect(screen.getByText(/2\/2/)).toBeInTheDocument();
+      expect(screen.getByText(/2\/2/)).toBeTruthy();
     });
   });
 
@@ -339,7 +339,7 @@ describe("HelmChartVersionTray", () => {
 
     // Should find 1 match despite different casing
     await waitFor(() => {
-      expect(screen.getByText(/1\/1/)).toBeInTheDocument();
+      expect(screen.getByText(/1\/1/)).toBeTruthy();
     });
 
     // Clear and search for uppercase "data" which should match "DATA"
@@ -347,7 +347,7 @@ describe("HelmChartVersionTray", () => {
 
     // Should find 1 match despite different casing
     await waitFor(() => {
-      expect(screen.getByText(/1\/1/)).toBeInTheDocument();
+      expect(screen.getByText(/1\/1/)).toBeTruthy();
     });
   });
 
@@ -372,14 +372,14 @@ describe("HelmChartVersionTray", () => {
     // Verify that the match count updates, proving the search term is being processed
     // and passed to the YAML display component for highlighting
     await waitFor(() => {
-      expect(screen.getByText(/1\/2/)).toBeInTheDocument();
+      expect(screen.getByText(/1\/2/)).toBeTruthy();
     });
 
     // Verify that with a different search term, the match count also updates
     fireEvent.change(searchInput, { target: { value: "key" } });
 
     await waitFor(() => {
-      expect(screen.getByText(/1\/1/)).toBeInTheDocument();
+      expect(screen.getByText(/1\/1/)).toBeTruthy();
     });
   });
 });

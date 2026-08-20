@@ -1,3 +1,4 @@
+import { useClusterWideAPI } from "@litelens/core";
 import {
   ButtonGroup,
   FullTextSearchInput,
@@ -19,7 +20,6 @@ import {
   useFullTextSearch,
 } from "@litelens/design-system";
 import { FC, useEffect, useState } from "react";
-import { useHelmContext } from "../../HelmContext";
 import type { HelmReleaseDetail, HelmReleaseResource } from "../../api/resources";
 import { useGetHelmReleaseDetail } from "../../hooks/data-access/useGetHelmReleaseDetail";
 import {
@@ -103,22 +103,7 @@ const HelmReleaseOverviewTab: FC<{ data: HelmReleaseDetail }> = ({ data }) => {
 };
 
 const HelmReleaseResourcesTab: FC<{ resources: HelmReleaseResource[] }> = ({ resources }) => {
-  const { onToggleNamespaceDetail, getResourceLinks } = useHelmContext();
-  const resourceLinks: Record<string, (ns: string, name: string) => void> = {};
-
-  // Build the resourceLinks object from the getResourceLinks helper
-  for (const resource of resources) {
-    const kind = resource.Kind.toLowerCase();
-    if (!resourceLinks[kind]) {
-      resourceLinks[kind] = (ns: string, name: string) => {
-        const links = getResourceLinks({ kind: resource.Kind, name, namespace: ns });
-        if (links.length > 0) {
-          // For now, just navigate to the first link if available
-          // A proper implementation would open a context menu or similar
-        }
-      };
-    }
-  }
+  const { resourceLinks } = useClusterWideAPI();
 
   if (resources.length === 0) {
     return (
@@ -171,7 +156,7 @@ const HelmReleaseResourcesTab: FC<{ resources: HelmReleaseResource[] }> = ({ res
                       </td>
                       <td className="px-3 py-2">
                         {r.Namespace ? (
-                          <ResourceLink onClick={() => onToggleNamespaceDetail(r.Namespace)}>
+                          <ResourceLink onClick={() => resourceLinks.namespace("", r.Namespace)}>
                             {r.Namespace}
                           </ResourceLink>
                         ) : (
@@ -204,7 +189,7 @@ const HelmReleaseDrawerCtaButtons: FC<{
   namespace: string;
   onDeleted: () => void;
 }> = ({ data, name, namespace, onDeleted }) => {
-  const { activeContext, unifiedTray } = useHelmContext();
+  const { activeContext, unifiedTray } = useClusterWideAPI();
 
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showCleanupModal, setShowCleanupModal] = useState(false);
@@ -292,7 +277,7 @@ const HelmReleaseDetailDrawerBody: FC<
     onDataChange: (data: HelmReleaseDetail | undefined) => void;
   }
 > = ({ releaseName, namespace, onDataChange }) => {
-  const { activeContext } = useHelmContext();
+  const { activeContext } = useClusterWideAPI();
   const { data, isLoading } = useGetHelmReleaseDetail(activeContext, namespace, releaseName);
 
   useEffect(() => {
@@ -346,7 +331,7 @@ export const HelmReleaseDetailDrawer: FC<HelmReleaseDetailDrawerProps> = ({
   open,
   onClose,
 }) => {
-  const { activeContext } = useHelmContext();
+  const { activeContext } = useClusterWideAPI();
 
   const hasData = !!activeContext && !!namespace && !!releaseName;
 

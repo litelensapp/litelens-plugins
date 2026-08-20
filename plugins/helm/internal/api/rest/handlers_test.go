@@ -1,4 +1,4 @@
-package api
+package rest
 
 import (
 	"bytes"
@@ -13,7 +13,7 @@ import (
 	"github.com/litelensapp/litelens-plugins/plugins/helm/internal/dto"
 )
 
-// stubService is a minimal server.Service implementation for testing the HTTP layer
+// stubService is a minimal Service implementation for testing the HTTP layer
 // in isolation from real Helm/Kubernetes calls.
 type stubService struct {
 	charts      []dto.HelmChart
@@ -174,62 +174,3 @@ func TestGetReleaseByName_NotFound(t *testing.T) {
 	}
 }
 
-func TestSetClusterContext_Success(t *testing.T) {
-	svc := &stubService{}
-	srv := newTestServer(svc)
-	defer srv.Close()
-
-	body, _ := json.Marshal(map[string]string{"ContextName": "kind-test", "KubeconfigPath": "/tmp/kubeconfig"})
-	resp, err := http.Post(srv.URL+"/internal/setClusterContext", "application/json", bytes.NewReader(body))
-	if err != nil {
-		t.Fatalf("request failed: %v", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("expected 200, got %d", resp.StatusCode)
-	}
-	if atomic.LoadInt32(&svc.setActiveContextCalls) != 1 {
-		t.Fatalf("expected SetActiveContext to be called once, got %d", svc.setActiveContextCalls)
-	}
-	if svc.lastContextName != "kind-test" || svc.lastKubeconfigPath != "/tmp/kubeconfig" {
-		t.Fatalf("unexpected args: %q %q", svc.lastContextName, svc.lastKubeconfigPath)
-	}
-}
-
-// TestConcurrentBusinessAndContextSwitch exercises many concurrent business requests
-// racing against concurrent SetClusterContext calls through the HTTP layer. Run with
-// `go test -race` to catch any data race in the handler/stub wiring.
-func TestConcurrentBusinessAndContextSwitch(t *testing.T) {
-	svc := &stubService{charts: []dto.HelmChart{{Name: "nginx"}}}
-	srv := newTestServer(svc)
-	defer srv.Close()
-
-	var wg sync.WaitGroup
-	for i := 0; i < 20; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			resp, err := http.Post(srv.URL+"/api/helm/listCharts", "application/json", bytes.NewReader(nil))
-			if err != nil {
-				t.Errorf("business request failed: %v", err)
-				return
-			}
-			resp.Body.Close()
-		}()
-	}
-	for i := 0; i < 5; i++ {
-		wg.Add(1)
-		go func(n int) {
-			defer wg.Done()
-			body, _ := json.Marshal(map[string]string{"ContextName": fmt.Sprintf("ctx-%d", n)})
-			resp, err := http.Post(srv.URL+"/internal/setClusterContext", "application/json", bytes.NewReader(body))
-			if err != nil {
-				t.Errorf("setClusterContext request failed: %v", err)
-				return
-			}
-			resp.Body.Close()
-		}(i)
-	}
-	wg.Wait()
-}

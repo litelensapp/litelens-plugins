@@ -1,20 +1,16 @@
-package api
+package rest
 
 import (
 	"encoding/json"
 	"net/http"
-
-	"github.com/litelensapp/litelens-plugins/plugins/helm/internal/server"
 )
 
-// Handler exposes helm.Service business methods over plain HTTP POST endpoints,
-// mirroring internal/server/grpc.go's dispatch() switch so the plugin frontend can
-// eventually call this backend directly over localhost instead of the host's gRPC relay.
+// Handler exposes helm.Service business methods over plain HTTP POST endpoints.
 type Handler struct {
-	svc server.Service
+	svc Service
 }
 
-func NewHandler(svc server.Service) *Handler {
+func NewHandler(svc Service) *Handler {
 	return &Handler{svc: svc}
 }
 
@@ -34,7 +30,6 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/helm/getChartValues", h.getChartValues)
 	mux.HandleFunc("POST /api/helm/getReleaseHistory", h.getReleaseHistory)
 	mux.HandleFunc("POST /api/helm/rollbackRelease", h.rollbackRelease)
-	mux.HandleFunc("POST /internal/setClusterContext", h.setClusterContext)
 }
 
 func decodeBody(r *http.Request, v any) bool {
@@ -224,21 +219,6 @@ func (h *Handler) rollbackRelease(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := h.svc.RollbackHelmRelease(req.Namespace, req.ReleaseName, req.Revision); err != nil {
 		writeError(w, http.StatusServiceUnavailable, "PLUGIN_UNAVAILABLE", err.Error())
-		return
-	}
-	writeJSON(w, struct{}{})
-}
-
-// setClusterContext handles the host's push of the active cluster context.
-// Localhost-only, no auth (same trust model as the business endpoints). Idempotent.
-func (h *Handler) setClusterContext(w http.ResponseWriter, r *http.Request) {
-	var req struct{ ContextName, KubeconfigPath string }
-	if !decodeBody(r, &req) {
-		writeError(w, http.StatusBadRequest, "INVALID_REQUEST", "invalid request body")
-		return
-	}
-	if err := h.svc.SetActiveContext(req.ContextName, req.KubeconfigPath); err != nil {
-		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", err.Error())
 		return
 	}
 	writeJSON(w, struct{}{})

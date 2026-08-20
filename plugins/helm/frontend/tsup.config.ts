@@ -19,7 +19,13 @@ export default defineConfig({
   // bundled into the plugin — required for react-dom/@tanstack/react-query
   // context objects to resolve correctly when a plugin component is mounted
   // inline in the host's fiber tree.
-  external: ["react", "react-dom", "@litelens/design-system", "@tanstack/react-query"],
+  external: [
+    "react",
+    "react-dom",
+    "@litelens/design-system",
+    "@tanstack/react-query",
+    "@litelens/core",
+  ],
   // Compiled Tailwind CSS is generated to src/generated-style.css before this
   // build runs (see package.json's build script) and imported as a raw string
   // in src/pluginStyles.ts, so it ends up embedded directly in dist/index.js

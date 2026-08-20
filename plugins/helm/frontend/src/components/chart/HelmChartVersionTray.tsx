@@ -1,3 +1,4 @@
+import { useClusterWideAPI } from "@litelens/core";
 import {
   Button,
   FullTextSearchInput,
@@ -17,7 +18,6 @@ import {
   useFullTextSearch,
 } from "@litelens/design-system";
 import { FC, Fragment, useReducer, useState } from "react";
-import { useHelmContext } from "../../HelmContext";
 import { useGetHelmChartValues } from "../../hooks/data-access/useGetHelmChartValues";
 import { useGetHelmChartVersions } from "../../hooks/data-access/useGetHelmChartVersions";
 import { useInstallHelmChart } from "../../hooks/data-mutation/useInstallHelmChart";
@@ -208,7 +208,7 @@ export const HelmChartVersionTray: FC<HelmChartVersionTrayProps> = ({
 }) => {
   const { repo, chartName, initialVersion, onNavigateToView } = tab;
 
-  const { namespaces = [] } = useHelmContext();
+  const { availableNamespaces: namespaces = [] } = useClusterWideAPI();
 
   const [releaseName, setReleaseName] = useState("");
   const [namespace, setNamespace] = useState("default");
