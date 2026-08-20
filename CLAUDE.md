@@ -108,14 +108,11 @@ message)` writes `{code, message}` as `ErrorResponse` JSON with a non-2xx status
     the same generated code the host app consumes. Editing the contract means editing
     `packages/core/pb/plugin.proto` in the `litelens` host repo and bumping this plugin's
     `packages/core` dependency version; there is no local `.proto` copy to keep in sync anymore.
-- **`github.com/litelensapp/litelens/packages/core` dependency**: `plugins/helm/go.mod` requires
-  `packages/core v0.1.0`. No published git tag exists yet for that module, so the root `go.work`
-  (`use (. ./plugins/helm)` plus a path to a sibling `litelens` checkout) substitutes the on-disk
-  module for the versioned dependency in the meantime — see
-  `.claude/memory/go_work_removal_todo.md` for the exact removal steps once a real
-  `packages/core/vX.Y.Z` tag is published. `packages/core` supplies the gRPC `pb` package and
-  `kube.LoadingRules`; it does **not** supply Helm-specific types — `internal/dto/helm.go` (this repo)
-  holds those and is plugin-owned, not a synced copy of anything in the host repo.
+- **`github.com/litelensapp/litelens/packages/core` dependency**: `plugins/helm/go.mod` requires the
+  published `packages/core v1.7.0` tag from the `litelens` host repo directly — no `go.work` shim or
+  local `replace` directive. `packages/core` supplies the gRPC `pb` package and `kube.LoadingRules`;
+  it does **not** supply Helm-specific types — `internal/dto/helm.go` (this repo) holds those and is
+  plugin-owned, not a synced copy of anything in the host repo.
 
 ### Frontend (`plugins/helm/frontend/src/`) — dynamically-loaded ES module
 

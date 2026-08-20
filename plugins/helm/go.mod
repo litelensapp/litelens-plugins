@@ -3,7 +3,7 @@ module github.com/litelensapp/litelens-plugins/plugins/helm
 go 1.26.5
 
 require (
-	github.com/litelensapp/litelens/packages/core v0.1.0
+	github.com/litelensapp/litelens/packages/core v1.7.0
 	google.golang.org/grpc v1.83.0
 	helm.sh/helm/v3 v3.21.2
 	k8s.io/api v0.36.3
@@ -122,11 +122,3 @@ require (
 )
 
 tool honnef.co/go/tools/cmd/staticcheck
-
-// TEMPORARY, local-testing only: no packages/core/vX.Y.Z tag has been published yet by the
-// litelens host repo, so there is no real versioned module to depend on. This replace directive
-// (kept in sync with the root go.work's `use` directive) substitutes a sibling `litelens` checkout
-// on disk. Building this module without that sibling checkout present will fail to resolve
-// github.com/litelensapp/litelens/packages/core. See .claude/memory/go_work_removal_todo.md for the
-// removal sequence once a real tag exists.
-replace github.com/litelensapp/litelens/packages/core => ../../../litelens/packages/core

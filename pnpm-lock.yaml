@@ -22,7 +22,7 @@ catalogs:
       specifier: ^6.0.5
       version: 6.0.5
     '@vitest/coverage-v8':
-      specifier: ^4.1.10
+      specifier: ^4.1.11
       version: 4.1.11
     cross-env:
       specifier: ^10.1.0
@@ -37,7 +37,7 @@ catalogs:
       specifier: ^6.0.3
       version: 6.0.3
     vitest:
-      specifier: ^4.1.10
+      specifier: ^4.1.11
       version: 4.1.11
 
 importers:
@@ -81,11 +81,11 @@ importers:
   plugins/helm/frontend:
     dependencies:
       '@litelens/core':
-        specifier: ^0.9.6
-        version: 0.9.6(@litelens/design-system@1.6.5(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(tailwindcss@4.3.3)(typescript@6.0.3))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+        specifier: ^1.7.0
+        version: 1.7.0(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       '@litelens/design-system':
-        specifier: ^1.6.3
-        version: 1.6.5(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(tailwindcss@4.3.3)(typescript@6.0.3)
+        specifier: ^1.7.0
+        version: 1.7.0(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(tailwindcss@4.3.3)(typescript@6.0.3)
       '@tanstack/react-query':
         specifier: ^5.101.4
         version: 5.101.4(react@19.2.8)
@@ -640,15 +640,14 @@ packages:
   '@jridgewell/trace-mapping@0.3.31':
     resolution: {integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==}
 
-  '@litelens/core@0.9.6':
-    resolution: {integrity: sha512-FP6C/jrGno58jLVJ55dzKcJPC1gKBG70e/FoIqOT4ODu4ZsOIk8k8OKucQKP0MMb+UdvjjXuMDljltJrTNMyOg==}
+  '@litelens/core@1.7.0':
+    resolution: {integrity: sha512-U5LaaYgKn1tIgq1bRcIK+DqkKvULRngKTjFvh3QEsAu0s0P3qZpw0BvQt383l0ehors4RURv3XqBl+BxjHpHpg==}
     peerDependencies:
-      '@litelens/design-system': ^1.6.3
       react: ^19.0.0
       react-dom: ^19.0.0
 
-  '@litelens/design-system@1.6.5':
-    resolution: {integrity: sha512-Pv9TguUpmInGWM2ntAdkUtl+hO/y9U3SAhhkmb55Ay+HHC/x/SDXpXGy+m65SovHFDQ6DgoyjDXlCFpVQRkU0Q==}
+  '@litelens/design-system@1.7.0':
+    resolution: {integrity: sha512-/kNMAUo+38zHHAX6bvQfMd8nH6MWp5y0gMwkekkk7p8fz6b7fdDfWKJzsvfN3Zr3jLCzZRZBYM4hnKVHvTy1Rg==}
     peerDependencies:
       react: ^19.0.0
       react-dom: ^19.0.0
@@ -1698,8 +1697,8 @@ packages:
   ee-first@1.1.1:
     resolution: {integrity: sha512-WMwm9LhRUo+WUaRN+vRuETqG89IgZphVSNkdFgeb6sS/E4OrDIN7t48CAewSHXc6C8lefD8KKfr5vY61brQlow==}
 
-  electron-to-chromium@1.5.409:
-    resolution: {integrity: sha512-ChI4N44d0B4A6C8prnNjMOaGgE59fUyEVYcRYm2XEXIjMbbvF5i9UL1cblDbpGqiU0uS8FE8UcKxqZqTXdmzbQ==}
+  electron-to-chromium@1.5.411:
+    resolution: {integrity: sha512-gglkxzokjHfawpGxq75XdBV2/l3BAPzrsMs70qgaZdTW5rpV1tC4MdgJVP9fN126bODA4ZJQkn1wryEzJyQXIg==}
 
   emoji-regex@10.6.0:
     resolution: {integrity: sha512-toUI84YS5YmxW219erniWD0CIVOo46xGKColeNQRgOzDorgBi1v4D71/OFzgD9GO2UGKIv1C3Sp8DAn0+j5w7A==}
@@ -2484,8 +2483,8 @@ packages:
   lru-cache@5.1.1:
     resolution: {integrity: sha512-KpNARQA3Iwv+jTA0utUVVbrh+Jlrr1Fv0e56GGzAFOXN7dk/FviaDW8LHmK52DlcH4WP2n6gI8vN1aesBFgo9w==}
 
-  lucide-react@1.32.0:
-    resolution: {integrity: sha512-txX56hMFnRxPi1f9/nH69YN8uvAO6a7Y1KSWKjCDAtdD9+soEgmWuCt6iRm1pkxUZo2+YntSdsE1L6bIuKoY8Q==}
+  lucide-react@1.33.0:
+    resolution: {integrity: sha512-MTRwMy0ZlL8Ur/vOAiJ9XGHE+kFPC7brq6MxAm0GiGXEBj0qy0jA/pG4N675oSzciO/UCdX8T+5yUQdmDeTLxg==}
     peerDependencies:
       react: ^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0
 
@@ -4144,20 +4143,19 @@ snapshots:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
 
-  '@litelens/core@0.9.6(@litelens/design-system@1.6.5(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(tailwindcss@4.3.3)(typescript@6.0.3))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)':
+  '@litelens/core@1.7.0(react-dom@19.2.8(react@19.2.8))(react@19.2.8)':
     dependencies:
-      '@litelens/design-system': 1.6.5(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(tailwindcss@4.3.3)(typescript@6.0.3)
       react: 19.2.8
       react-dom: 19.2.8(react@19.2.8)
 
-  '@litelens/design-system@1.6.5(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(tailwindcss@4.3.3)(typescript@6.0.3)':
+  '@litelens/design-system@1.7.0(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(tailwindcss@4.3.3)(typescript@6.0.3)':
     dependencies:
       '@base-ui/react': 1.7.0(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       '@fontsource-variable/inter': 5.3.0
       '@fontsource-variable/space-grotesk': 5.3.0
       class-variance-authority: 0.7.1
       clsx: 2.1.1
-      lucide-react: 1.32.0(react@19.2.8)
+      lucide-react: 1.33.0(react@19.2.8)
       next-themes: 0.4.6(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       react: 19.2.8
       react-dom: 19.2.8(react@19.2.8)
@@ -4824,7 +4822,7 @@ snapshots:
     dependencies:
       baseline-browser-mapping: 2.11.15
       caniuse-lite: 1.0.30001809
-      electron-to-chromium: 1.5.409
+      electron-to-chromium: 1.5.411
       node-releases: 2.0.53
       update-browserslist-db: 1.3.1(browserslist@4.28.8)
 
@@ -5042,7 +5040,7 @@ snapshots:
 
   ee-first@1.1.1: {}
 
-  electron-to-chromium@1.5.409: {}
+  electron-to-chromium@1.5.411: {}
 
   emoji-regex@10.6.0: {}
 
@@ -5803,7 +5801,7 @@ snapshots:
     dependencies:
       yallist: 3.1.1
 
-  lucide-react@1.32.0(react@19.2.8):
+  lucide-react@1.33.0(react@19.2.8):
     dependencies:
       react: 19.2.8
 

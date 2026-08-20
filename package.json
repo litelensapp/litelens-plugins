@@ -16,7 +16,8 @@
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,css,md,yml}\"",
     "lint:fe": "eslint plugins/helm/frontend/src",
     "lint:be": "go vet -C plugins/helm ./... && go tool -C plugins/helm staticcheck ./...",
-    "prepare": "husky"
+    "prepare": "husky",
+    "upgrade:all": "pnpm up -S -r"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
