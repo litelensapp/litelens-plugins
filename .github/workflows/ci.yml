@@ -11,12 +11,16 @@ concurrency:
 jobs:
   unit-test-plugin-helm:
     name: Unit Tests - Helm Plugin
-    uses: ./.github/workflows/job-unit-test-plugin-helm.yml
+    uses: ./.github/workflows/job-unit-test.yml
+    with:
+      plugin_id: helm
+      plugin_name: Helm
     secrets: inherit
 
   build-check-plugin-helm:
     name: Build Check - Helm Plugin
-    uses: ./.github/workflows/job-build-check-plugin-helm.yml
+    uses: ./.github/workflows/job-build-check.yml
     with:
+      plugin_id: helm
       RUNNER: ubuntu-latest
     secrets: inherit

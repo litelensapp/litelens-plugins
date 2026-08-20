@@ -1,8 +1,13 @@
-name: Build Check - Helm Plugin
+name: Build Check
 
 on:
   workflow_call:
     inputs:
+      plugin_id:
+        type: string
+        required: true
+        # Short plugin identifier, e.g. "helm". Drives the pnpm script name
+        # (build:<plugin_id>), matching job-build.yml's convention.
       RUNNER:
         type: string
         required: false
@@ -26,4 +31,4 @@ jobs:
 
       - name: Build plugin binary
         shell: bash
-        run: pnpm build:plugin:helm
+        run: pnpm build:${{ inputs.plugin_id }}

@@ -1,8 +1,32 @@
-name: Build Helm Plugin
+name: Build Plugin
 
 on:
   workflow_call:
     inputs:
+      plugin_id:
+        type: string
+        required: true
+        # Short plugin identifier, e.g. "helm". Drives pnpm script names
+        # (build:<plugin_id>, build:<plugin_id>:fe), the plugins/<plugin_id>/
+        # source path, and every artifact name (litelens-plugin-<plugin_id>-...).
+      plugin_name:
+        type: string
+        required: true
+        # Display name for the manifest, e.g. "Helm".
+      plugin_description:
+        type: string
+        required: true
+      plugin_homepage:
+        type: string
+        required: true
+      plugin_capabilities:
+        type: string
+        required: true
+        # Comma-separated capability list, e.g. "helm-charts,helm-releases".
+      plugin_binary_name:
+        type: string
+        required: true
+        # Binary filename baked into the manifest's assets.binaryName, e.g. "plugin-helm".
       version:
         type: string
         required: false
@@ -11,7 +35,22 @@ on:
         # (used by CI test wiring so it never needs to be hand-bumped).
 
 jobs:
+  detect-changes:
+    name: Detect Plugin Changes
+    uses: ./.github/workflows/job-detect-changes.yml
+    with:
+      paths: |
+        plugins/${{ inputs.plugin_id }}/**
+        pnpm-lock.yaml
+        package.json
+        pnpm-workspace.yaml
+        .github/workflows/job-build.yml
+        .github/actions/setup-go/**
+        .github/actions/setup-node-pnpm/**
+
   run:
+    needs: [detect-changes]
+    if: ${{ needs.detect-changes.outputs.changed == 'true' }}
     permissions:
       contents: write
       actions: write
@@ -23,19 +62,16 @@ jobs:
             platform: darwin/arm64
             goos: darwin
             goarch: arm64
-            artifact_base: litelens-plugin-helm-darwin-arm64
             ext: ""
           - os: windows-latest
             platform: windows/amd64
             goos: windows
             goarch: amd64
-            artifact_base: litelens-plugin-helm-windows-amd64
             ext: ".exe"
           - os: ubuntu-latest
             platform: linux/amd64
             goos: linux
             goarch: amd64
-            artifact_base: litelens-plugin-helm-linux-amd64
             ext: ""
 
     runs-on: ${{ matrix.os }}
@@ -56,8 +92,8 @@ jobs:
         id: artifact
         shell: bash
         run: |
-          NAME="${{ matrix.artifact_base }}"
-          FRONTEND="litelens-plugin-helm-frontend"
+          NAME="litelens-plugin-${{ inputs.plugin_id }}-${{ matrix.goos }}-${{ matrix.goarch }}"
+          FRONTEND="litelens-plugin-${{ inputs.plugin_id }}-frontend"
           echo "name=${NAME}${{ matrix.ext }}" >> "$GITHUB_OUTPUT"
           echo "frontend_name=${FRONTEND}.tar.gz" >> "$GITHUB_OUTPUT"
 
@@ -83,20 +119,20 @@ jobs:
           GOARCH: ${{ matrix.goarch }}
           VERSION: ${{ inputs.version }}
           OUTPUT: ../../build/plugin-bin/${{ steps.artifact.outputs.name }}
-        run: pnpm build:plugin:helm
+        run: pnpm build:${{ inputs.plugin_id }}
 
       - name: Build plugin frontend
         # Frontend bundle is OS-agnostic, so only built and uploaded once on Linux.
-        # Uses the same build:plugin:helm:fe script as local dev to guarantee
+        # Uses the same build:<plugin_id>:fe script as local dev to guarantee
         # the dist/ output (index.js + chunk-*.js files) is identical; packaging it
         # into a tar.gz archive is CI-only, since local testing deploys dist/ straight
-        # into ~/.litelens/plugins/helm instead (see build:plugin:helm:local).
+        # into ~/.litelens/plugins/<plugin_id> instead (see build:<plugin_id>:local).
         if: matrix.os == 'ubuntu-latest'
         run: |
           pnpm install --frozen-lockfile
-          pnpm build:plugin:helm:fe
+          pnpm build:${{ inputs.plugin_id }}:fe
           mkdir -p build/plugin-bin
-          tar -C plugins/helm/frontend/dist -czf "build/plugin-bin/${{ steps.artifact.outputs.frontend_name }}" .
+          tar -C plugins/${{ inputs.plugin_id }}/frontend/dist -czf "build/plugin-bin/${{ steps.artifact.outputs.frontend_name }}" .
 
       - name: Compute SHA256 checksums (Unix)
         if: runner.os != 'Windows'
@@ -169,15 +205,16 @@ jobs:
         id: artifact
         shell: bash
         run: |
-          LINUX_ARTIFACT="litelens-plugin-helm-linux-amd64"
-          DARWIN_ARTIFACT="litelens-plugin-helm-darwin-arm64"
+          PLUGIN_ID="${{ inputs.plugin_id }}"
+          LINUX_ARTIFACT="litelens-plugin-${PLUGIN_ID}-linux-amd64"
+          DARWIN_ARTIFACT="litelens-plugin-${PLUGIN_ID}-darwin-arm64"
           # Must match steps.artifact.outputs.name from the `run` job exactly (that's the
           # upload-artifact `name:`, i.e. the artifact/directory name after download) —
-          # Windows builds append matrix.ext (".exe") to the artifact_base there, so it
+          # Windows builds append matrix.ext (".exe") to the artifact name there, so it
           # must be included here too, both for the directory name and the binary filename.
-          WINDOWS_ARTIFACT="litelens-plugin-helm-windows-amd64.exe"
-          FRONTEND="litelens-plugin-helm-frontend"
-          MANIFEST="litelens-plugin-helm-manifest"
+          WINDOWS_ARTIFACT="litelens-plugin-${PLUGIN_ID}-windows-amd64.exe"
+          FRONTEND="litelens-plugin-${PLUGIN_ID}-frontend"
+          MANIFEST="litelens-plugin-${PLUGIN_ID}-manifest"
           echo "linux_artifact=$LINUX_ARTIFACT" >> "$GITHUB_OUTPUT"
           echo "darwin_artifact=$DARWIN_ARTIFACT" >> "$GITHUB_OUTPUT"
           echo "windows_artifact=$WINDOWS_ARTIFACT" >> "$GITHUB_OUTPUT"
@@ -218,21 +255,24 @@ jobs:
           WINDOWS_SHA256=$(cat "artifacts/${WINDOWS_ARTIFACT}/${WINDOWS_ARTIFACT}.sha256")
           WINDOWS_SIZE=$(stat -c%s "artifacts/${WINDOWS_ARTIFACT}/${WINDOWS_ARTIFACT}")
 
-          # Resolve logo filename (helm.svg/.png/.jpg/.jpeg, first match wins),
-          # shared with deploy-plugin-helm-local.mjs so both use the same source
+          # Resolve logo filename (<plugin_id>.svg/.png/.jpg/.jpeg, first match wins),
+          # shared with deploy-plugin-<plugin_id>-local.mjs so both use the same source
           # file. The file itself is uploaded as a release asset in the next step;
           # manifest.assets.logo just records its filename for the installer to
           # download it under.
-          LOGO_FILE=$(node plugins/helm/scripts/resolve-logo.mjs)
+          LOGO_FILE=$(node plugins/${{ inputs.plugin_id }}/scripts/resolve-logo.mjs)
+
+          # Split comma-separated capabilities into a JSON array
+          CAPABILITIES_JSON=$(node -e "console.log(JSON.stringify('${{ inputs.plugin_capabilities }}'.split(',').map(s => s.trim()).filter(Boolean)))")
 
           # Generate manifest JSON
           jq -n \
-            --arg id "helm" \
-            --arg name "Helm" \
-            --arg description "Manage Helm charts and releases in your Kubernetes clusters" \
+            --arg id "${{ inputs.plugin_id }}" \
+            --arg name "${{ inputs.plugin_name }}" \
+            --arg description "${{ inputs.plugin_description }}" \
             --arg version "$VERSION" \
             --arg repository "https://github.com/gknguyen/litelens/releases" \
-            --arg homepage "https://helm.sh" \
+            --arg homepage "${{ inputs.plugin_homepage }}" \
             --arg bundleSha256 "$BUNDLE_SHA256" \
             --argjson bundleSize "$BUNDLE_SIZE" \
             --arg binarySha256 "$BINARY_SHA256" \
@@ -241,9 +281,10 @@ jobs:
             --argjson darwinSize "$DARWIN_SIZE" \
             --arg windowsSha256 "$WINDOWS_SHA256" \
             --argjson windowsSize "$WINDOWS_SIZE" \
-            --arg binaryName "plugin-helm" \
+            --arg binaryName "${{ inputs.plugin_binary_name }}" \
             --arg bundleDir "dist" \
             --arg logoFile "$LOGO_FILE" \
+            --argjson capabilities "$CAPABILITIES_JSON" \
             '{
               id: $id,
               name: $name,
@@ -284,7 +325,7 @@ jobs:
                 binaryName: $binaryName,
                 bundleDir: $bundleDir
               } + (if $logoFile != "" then {logo: $logoFile} else {} end)),
-              capabilities: ["helm-charts", "helm-releases"]
+              capabilities: $capabilities
             }' > "$MANIFEST_NAME"
 
           cat "$MANIFEST_NAME"
@@ -307,13 +348,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          LOGO_FILE=$(node plugins/helm/scripts/resolve-logo.mjs)
+          LOGO_FILE=$(node plugins/${{ inputs.plugin_id }}/scripts/resolve-logo.mjs)
           if [ -z "$LOGO_FILE" ]; then
             echo "No logo file found, skipping upload."
             exit 0
           fi
           VERSION="${{ steps.resolve-version.outputs.version }}"
           EXT="${LOGO_FILE##*.}"
-          LOGO_ASSET_NAME="litelens-plugin-helm-logo.${EXT}"
-          cp "plugins/helm/${LOGO_FILE}" "${LOGO_ASSET_NAME}"
+          LOGO_ASSET_NAME="litelens-plugin-${{ inputs.plugin_id }}-logo.${EXT}"
+          cp "plugins/${{ inputs.plugin_id }}/${LOGO_FILE}" "${LOGO_ASSET_NAME}"
           gh release upload "$VERSION" "$LOGO_ASSET_NAME" --repo "${{ github.repository }}" --clobber
