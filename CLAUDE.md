@@ -94,9 +94,10 @@ message)` writes `{code, message}` as `ErrorResponse` JSON with a non-2xx status
     `NOT_FOUND` (404, nil lookup), `INTERNAL_ERROR` (500, e.g. `setClusterContext` failure). The
     frontend's `wailsBridge.ts` throws this exact `{code, message}` shape on non-2xx responses — keep
     new handlers consistent with it.
-  - `POST /internal/setClusterContext` — despite the historical name suggesting an inbound push, the
-    active control path today is the outbound gRPC watch stream above; this HTTP handler is kept as
-    an idempotent, localhost-only, same-mutex-guarded entry point.
+  - Cluster-context switching happens exclusively via the outbound gRPC watch stream
+    (`internal/api/grpc.DialAndSubscribe` + `kube.WatchClusterContext`); there is no HTTP entry point
+    for context switching. The plugin pulls context changes from the host over a gRPC stream rather
+    than receiving HTTP requests.
 - `internal/api/grpc/` — the gRPC _client_ side only (`client.go`'s `DialAndSubscribe`, `emitter.go`).
   There is no gRPC _server_ in the plugin anymore, and no `Invoke`/`dispatch()` method-relay switch —
   that generic RPC has been fully replaced by the HTTP routes above. `HostEventEmitter` uses the same

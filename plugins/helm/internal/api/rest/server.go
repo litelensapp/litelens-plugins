@@ -12,13 +12,13 @@ import (
 	"strconv"
 	"time"
 
+	grpclib "google.golang.org/grpc"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/client-go/discovery"
 	memorycache "k8s.io/client-go/discovery/cached/memory"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/restmapper"
 	"k8s.io/client-go/tools/clientcmd"
-	grpclib "google.golang.org/grpc"
 
 	"github.com/litelensapp/litelens-plugins/plugins/helm/internal/api/grpc"
 	"github.com/litelensapp/litelens-plugins/plugins/helm/internal/dto"
@@ -47,11 +47,20 @@ func NewHttpServer(listen, version string, svc Service) (*HttpServer, error) {
 		return nil, fmt.Errorf("listen for HTTP: %w", err)
 	}
 
-	_, portStr, err := net.SplitHostPort(ln.Addr().String())
+	host, portStr, err := net.SplitHostPort(ln.Addr().String())
 	if err != nil {
 		ln.Close()
 		return nil, fmt.Errorf("parse http listener address: %w", err)
 	}
+
+	// CORS hardening: ensure the server only listens on localhost.
+	// The corsMiddleware reflects the Origin header, which is safe only when the listener
+	// is localhost-only and cannot be reached by untrusted clients.
+	if host != "127.0.0.1" && host != "::1" && host != "localhost" {
+		ln.Close()
+		return nil, fmt.Errorf("CORS hardening: listener must be localhost-only; got %q", host)
+	}
+
 	port, err := strconv.Atoi(portStr)
 	if err != nil {
 		ln.Close()
