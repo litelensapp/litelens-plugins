@@ -6,7 +6,7 @@ plugins/helm/frontend/dist/
 plugins/helm/frontend/pkg/
 plugins/helm/frontend/src/generated-style.css
 plugins/helm/plugin
-plugins/helm/.output/
+.output/
 
 coverage/
 coverage.out

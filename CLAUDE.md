@@ -38,7 +38,7 @@ cd plugins/helm/frontend && pnpm vitest run src/components/release/__tests__/Hel
 # Build the Go plugin binary (used by both local dev and CI; see plugins/helm/scripts/build.sh)
 cd plugins/helm && GOOS=linux GOARCH=amd64 VERSION=1.2.3 ./scripts/build.sh
 
-# Mirror a full local plugin install (frontend dist + binary + tar.gz + metadata) under plugins/helm/.output/
+# Mirror a full local plugin install (frontend dist + binary + tar.gz + metadata) under .output/helm/
 cd plugins/helm && node scripts/deploy-plugin-helm-local.mjs   # run build:helm:fe first
 ```
 
@@ -173,8 +173,8 @@ message)` writes `{code, message}` as `ErrorResponse` JSON with a non-2xx status
 ### Local install-mirroring script
 
 `plugins/helm/scripts/deploy-plugin-helm-local.mjs` reproduces what a real plugin install looks like under
-`~/.litelens/plugins/helm`, but entirely inside `plugins/helm/.output/` — never touches the real install
-directory. Useful when testing changes against the main litelens app without going through the
+`~/.litelens/plugins/helm`, but entirely inside `<repo-root>/.output/<plugin-id>/` (e.g.
+`.output/helm/`) — never touches the real install directory. Useful when testing changes against the main litelens app without going through the
 CI-built release artifact. It intentionally does **not** produce `helm.lock` — that's runtime state
 created only by the host app's plugin process loader while the plugin is actually running.
 

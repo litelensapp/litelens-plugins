@@ -95,7 +95,8 @@ cd plugins/helm && GOOS=linux GOARCH=amd64 VERSION=1.2.3 ./scripts/build.sh
 ```
 
 Mirror a full local plugin install (frontend dist + binary + tar.gz + metadata) under
-`plugins/helm/.output/`, without touching your real `~/.litelens/plugins/` install:
+`<repo-root>/.output/<plugin-id>/` (e.g. `.output/helm/`), without touching your real
+`~/.litelens/plugins/` install:
 
 ```bash
 cd plugins/helm && node scripts/deploy-plugin-helm-local.mjs   # run build:helm:fe first

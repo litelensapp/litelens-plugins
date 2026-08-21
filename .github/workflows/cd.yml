@@ -78,7 +78,14 @@ jobs:
           # litelens-plugin-<plugin_id>-manifest.json (see its "Upload manifest
           # to release" step) — every plugin that publishes one this round gets
           # picked up here automatically.
-          assets=$(gh release view "$TAG" --repo "$REPO" --json assets --jq '.assets[].name')
+          #
+          # The release is still in draft state at this point (finalize-release
+          # below flips it to published only after this job uploads the
+          # registry manifest.json too), and GitHub's "get release by tag"
+          # endpoint 404s on draft releases — so `gh release view "$TAG"` can't
+          # be used here. List all releases instead (which does include
+          # drafts) and filter by tag locally.
+          assets=$(gh api "repos/${REPO}/releases" --paginate --jq ".[] | select(.tag_name == \"${TAG}\") | .assets[].name")
           for asset in $assets; do
             if [[ "$asset" =~ ^litelens-plugin-[a-z0-9-]+-manifest\.json$ ]]; then
               gh release download "$TAG" --repo "$REPO" --pattern "$asset" --dir plugin-manifests --clobber
@@ -102,3 +109,16 @@ jobs:
         run: |
           TAG="${{ needs.release-version.outputs.tag_name }}"
           gh release upload "$TAG" manifest.json --repo "${{ github.repository }}" --clobber
+
+  finalize-release:
+    name: Finalize Release
+    needs: [release-version, build-helm, publish-plugin-registry]
+    if: ${{ always() && needs.release-version.result == 'success' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Finalize release by flipping draft to published
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release edit "${{ needs.release-version.outputs.tag_name }}" --repo "${{ github.repository }}" --draft=false

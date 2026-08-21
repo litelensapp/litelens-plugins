@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 // Mirrors what a real Helm plugin install looks like under
-// ~/.litelens/plugins/helm, but entirely inside plugins/helm/.output —
+// ~/.litelens/plugins/helm, but entirely inside <repo-root>/.output/helm —
 // for local verification only. Does NOT touch ~/.litelens/plugins/helm;
 // that directory is populated exclusively by the real install/update flow
 // (InstallPlugin downloading the CI-built binary + tar.gz archive).
 //
-// Produces, under plugins/helm/.output/:
+// Produces, under <repo-root>/.output/<plugin-id>/:
 //   dist/                          - the built frontend bundle (index.js + chunks)
 //   helm-plugin-frontend.tar.gz    - the same archive CI ships, for checksum parity
 //   plugin-helm                    - the Go plugin binary, built for the host platform
@@ -30,8 +30,10 @@ import path from "node:path";
 import { resolveLogoFile } from "./resolve-logo.mjs";
 
 const pluginRoot = path.resolve(import.meta.dirname, "..");
+const repoRoot = path.resolve(pluginRoot, "..", "..");
+const pluginId = "helm";
 const builtDist = path.join(pluginRoot, "frontend", "dist");
-const outputDir = path.join(pluginRoot, ".output");
+const outputDir = path.join(repoRoot, ".output", pluginId);
 const outputDist = path.join(outputDir, "dist");
 const archivePath = path.join(outputDir, "helm-plugin-frontend.tar.gz");
 const binaryName = process.platform === "win32" ? "plugin-helm.exe" : "plugin-helm";
@@ -73,7 +75,7 @@ if (logoFile) {
 }
 
 const metadata = {
-  id: "helm",
+  id: pluginId,
   name: "Helm",
   description: "Manage Helm charts and releases in your Kubernetes clusters",
   version: "local-dev",
