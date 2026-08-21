@@ -1,0 +1,11 @@
+node_modules/
+
+plugins/helm/frontend/dist/
+plugins/helm/frontend/src/generated-style.css
+plugins/helm/.output/
+
+pnpm-lock.yaml
+*.go
+go.sum
+
+.claude/

@@ -1,0 +1,38 @@
+{
+  "name": "litelens-plugins",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "engines": {
+    "node": "26"
+  },
+  "packageManager": "pnpm@11.10.0",
+  "scripts": {
+    "build:helm": "bash plugins/helm/scripts/build.sh",
+    "build:helm:fe": "pnpm --filter @litelens/helm-plugin-frontend run build",
+    "build:helm:local": "pnpm build:helm:fe && node ./plugins/helm/scripts/deploy-plugin-helm-local.mjs",
+    "build:local": "pnpm build:helm:local",
+    "test:helm:fe": "pnpm --filter @litelens/helm-plugin-frontend run test",
+    "test:helm:fe:coverage": "pnpm --filter @litelens/helm-plugin-frontend run test:coverage",
+    "test:helm:be": "cd plugins/helm && go test -race -v ./...",
+    "test:helm:be:coverage": "cd plugins/helm && go test -race -v -cover -coverprofile=coverage.out ./...",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,css,md,yml}\"",
+    "lint:fe": "eslint plugins/helm/frontend/src",
+    "lint:be": "go vet -C plugins/helm ./... && go tool -C plugins/helm staticcheck ./...",
+    "prepare": "husky",
+    "upgrade:all": "pnpm up -S -r"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^26.2.0",
+    "eslint": "^10.8.1",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-react-refresh": "^0.5.4",
+    "globals": "^17.11.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.3.0",
+    "prettier": "^3.9.6",
+    "prettier-plugin-tailwindcss": "^0.8.1",
+    "typescript-eslint": "^8.67.0"
+  }
+}

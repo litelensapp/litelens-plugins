@@ -1,0 +1,17 @@
+{
+  "endOfLine": "lf",
+  "semi": true,
+  "singleQuote": false,
+  "tabWidth": 2,
+  "trailingComma": "es5",
+  "printWidth": 100,
+  "plugins": ["prettier-plugin-tailwindcss"],
+  "overrides": [
+    {
+      "files": "plugins/helm/frontend/**",
+      "options": {
+        "tailwindStylesheet": "plugins/helm/frontend/src/style.css"
+      }
+    }
+  ]
+}

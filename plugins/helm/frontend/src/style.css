@@ -1,0 +1,9 @@
+/* Compiled standalone by this package's own Tailwind build (see package.json
+   "build:css") into src/generated-style.css, which pluginStyles.ts imports as
+   text and tsup embeds directly into dist/index.js. Plugins can no longer
+   rely on the host's Tailwind build scanning their source, so every plugin
+   must ship its own resolved CSS — see @source below for what gets scanned
+   into this one. */
+@import "@litelens/design-system/styles.css";
+
+@source "./";

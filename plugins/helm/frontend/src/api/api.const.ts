@@ -1,0 +1,9 @@
+export const QUERY_KEY_HELM_CHARTS = "helm-charts";
+export const QUERY_KEY_HELM_RELEASES = "helm-releases";
+export const QUERY_KEY_HELM_RELEASE_DETAIL = "helm-release-detail";
+export const QUERY_KEY_HELM_RELEASE_HISTORY = "helm-release-history";
+export const QUERY_KEY_HELM_REPOSITORIES = "helm-repositories";
+export const QUERY_KEY_HELM_CHART_DETAIL = "helm-chart-detail";
+export const QUERY_KEY_HELM_CHART_VERSIONS = "helm-chart-versions";
+export const QUERY_KEY_ARTIFACTHUB_README = "artifacthub-readme";
+export const QUERY_KEY_HELM_CHART_VALUES = "helm-chart-values";

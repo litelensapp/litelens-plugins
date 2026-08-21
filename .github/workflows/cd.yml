@@ -1,0 +1,124 @@
+name: CD
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  release-version:
+    name: Release Version
+    uses: ./.github/workflows/job-release-semver.yml
+    secrets: inherit
+
+  # Adding a new plugin: add its own `build-<id>` job below (mirroring build-helm)
+  # and list it in publish-plugin-registry's `needs:` — job-build.yml handles change
+  # detection internally (skipping its own build when plugins/<id>/** etc. are
+  # unchanged), and the registry job discovers published per-plugin manifests by
+  # naming convention, so no other change is needed for a new plugin to be picked up.
+  build-helm:
+    name: Build Helm Plugin
+    needs: [release-version]
+    if: ${{ needs.release-version.result == 'success' }}
+    uses: ./.github/workflows/job-build.yml
+    secrets: inherit
+    with:
+      plugin_id: helm
+      plugin_name: Helm
+      plugin_description: Manage Helm charts and releases in your Kubernetes clusters
+      plugin_homepage: https://helm.sh
+      plugin_capabilities: helm-charts,helm-releases
+      plugin_binary_name: plugin-helm
+      version: ${{ needs.release-version.outputs.tag_name }}
+
+  publish-plugin-registry:
+    name: Publish Plugin Registry Manifest
+    needs: [release-version, build-helm]
+    if: ${{ always() && needs.release-version.result == 'success' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Build manifest.json from published per-plugin manifests
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          TAG="${{ needs.release-version.outputs.tag_name }}"
+          REPO="${{ github.repository }}"
+
+          mkdir -p baseline plugin-manifests
+
+          # Find the most recent prior release that already published a registry
+          # manifest.json, and use it as a baseline. Plugins whose build was
+          # skipped this round (no relevant changes, see detect-*-changes above)
+          # keep their last-known entry instead of dropping out of the registry
+          # for this release.
+          baseline_tag=""
+          for t in $(gh release list --repo "$REPO" --limit 20 --json tagName,createdAt --jq 'sort_by(.createdAt) | reverse | .[].tagName'); do
+            [[ "$t" == "$TAG" ]] && continue
+            if gh release view "$t" --repo "$REPO" --json assets --jq '.assets[].name' | grep -qx "manifest.json"; then
+              baseline_tag="$t"
+              break
+            fi
+          done
+
+          if [[ -n "$baseline_tag" ]]; then
+            echo "Using baseline registry manifest from release $baseline_tag"
+            gh release download "$baseline_tag" --repo "$REPO" --pattern manifest.json --dir baseline --clobber
+            cp baseline/manifest.json manifest.json
+          else
+            echo "No prior registry manifest found — starting fresh"
+            echo '{"generated_at": "", "release_tag": "", "plugins": []}' > manifest.json
+          fi
+
+          # Upsert this release's freshly built plugin manifests by id, leaving
+          # any plugin not rebuilt this round untouched from the baseline above.
+          # Per-plugin manifests are uploaded by job-build.yml as
+          # litelens-plugin-<plugin_id>-manifest.json (see its "Upload manifest
+          # to release" step) — every plugin that publishes one this round gets
+          # picked up here automatically.
+          #
+          # The release is still in draft state at this point (finalize-release
+          # below flips it to published only after this job uploads the
+          # registry manifest.json too), and GitHub's "get release by tag"
+          # endpoint 404s on draft releases — so `gh release view "$TAG"` can't
+          # be used here. List all releases instead (which does include
+          # drafts) and filter by tag locally.
+          assets=$(gh api "repos/${REPO}/releases" --paginate --jq ".[] | select(.tag_name == \"${TAG}\") | .assets[].name")
+          for asset in $assets; do
+            if [[ "$asset" =~ ^litelens-plugin-[a-z0-9-]+-manifest\.json$ ]]; then
+              gh release download "$TAG" --repo "$REPO" --pattern "$asset" --dir plugin-manifests --clobber
+              manifest=$(jq --slurpfile plugin "plugin-manifests/${asset}" \
+                '($plugin[0].id) as $id | .plugins = ([.plugins[] | select(.id != $id)] + [$plugin[0]])' \
+                manifest.json)
+              echo "$manifest" > manifest.json
+            fi
+          done
+
+          # Stamp metadata for this release
+          manifest=$(jq --arg tag "$TAG" --arg now "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            '.release_tag = $tag | .generated_at = $now' manifest.json)
+          echo "$manifest" > manifest.json
+
+          cat manifest.json
+
+      - name: Upload registry manifest to release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ needs.release-version.outputs.tag_name }}"
+          gh release upload "$TAG" manifest.json --repo "${{ github.repository }}" --clobber
+
+  finalize-release:
+    name: Finalize Release
+    needs: [release-version, build-helm, publish-plugin-registry]
+    if: ${{ always() && needs.release-version.result == 'success' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Finalize release by flipping draft to published
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release edit "${{ needs.release-version.outputs.tag_name }}" --repo "${{ github.repository }}" --draft=false
