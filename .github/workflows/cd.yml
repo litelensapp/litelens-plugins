@@ -14,8 +14,9 @@ jobs:
   # Adding a new plugin: add its own `build-<id>` job below (mirroring build-helm)
   # and list it in publish-plugin-registry's `needs:` — job-build.yml handles change
   # detection internally (skipping its own build when plugins/<id>/** etc. are
-  # unchanged), and the registry job discovers published per-plugin manifests by
-  # naming convention, so no other change is needed for a new plugin to be picked up.
+  # unchanged), and the registry job discovers per-plugin manifests uploaded as
+  # workflow artifacts by naming convention, so no other change is needed for a
+  # new plugin to be picked up.
   build-helm:
     name: Build Helm Plugin
     needs: [release-version]
@@ -39,7 +40,19 @@ jobs:
     permissions:
       contents: write
     steps:
-      - name: Build manifest.json from published per-plugin manifests
+      - name: Download per-plugin manifests
+        # Per-plugin manifests are internal hand-offs from job-build.yml's
+        # `manifest` job (uploaded as workflow artifacts, litelens-plugin-<id>-
+        # manifest.json), never published as release assets — this repo's only
+        # user/installer-facing plugin-manifest file is the aggregate
+        # manifest.json built below.
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: litelens-plugin-*-manifest.json
+          path: plugin-manifests
+          merge-multiple: true
+
+      - name: Build manifest.json from downloaded per-plugin manifests
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -74,26 +87,17 @@ jobs:
 
           # Upsert this release's freshly built plugin manifests by id, leaving
           # any plugin not rebuilt this round untouched from the baseline above.
-          # Per-plugin manifests are uploaded by job-build.yml as
-          # litelens-plugin-<plugin_id>-manifest.json (see its "Upload manifest
-          # to release" step) — every plugin that publishes one this round gets
-          # picked up here automatically.
-          #
-          # The release is still in draft state at this point (finalize-release
-          # below flips it to published only after this job uploads the
-          # registry manifest.json too), and GitHub's "get release by tag"
-          # endpoint 404s on draft releases — so `gh release view "$TAG"` can't
-          # be used here. List all releases instead (which does include
-          # drafts) and filter by tag locally.
-          assets=$(gh api "repos/${REPO}/releases" --paginate --jq ".[] | select(.tag_name == \"${TAG}\") | .assets[].name")
-          for asset in $assets; do
-            if [[ "$asset" =~ ^litelens-plugin-[a-z0-9-]+-manifest\.json$ ]]; then
-              gh release download "$TAG" --repo "$REPO" --pattern "$asset" --dir plugin-manifests --clobber
-              manifest=$(jq --slurpfile plugin "plugin-manifests/${asset}" \
-                '($plugin[0].id) as $id | .plugins = ([.plugins[] | select(.id != $id)] + [$plugin[0]])' \
-                manifest.json)
-              echo "$manifest" > manifest.json
-            fi
+          # Per-plugin manifests were fetched into plugin-manifests/ by the
+          # "Download per-plugin manifests" step above — every plugin that
+          # published one this round gets picked up here automatically. A
+          # plugin whose build was skipped this round (no relevant changes)
+          # has no file here and simply keeps its baseline entry.
+          shopt -s nullglob
+          for manifest_file in plugin-manifests/litelens-plugin-*-manifest.json; do
+            manifest=$(jq --slurpfile plugin "$manifest_file" \
+              '($plugin[0].id) as $id | .plugins = ([.plugins[] | select(.id != $id)] + [$plugin[0]])' \
+              manifest.json)
+            echo "$manifest" > manifest.json
           done
 
           # Stamp metadata for this release
