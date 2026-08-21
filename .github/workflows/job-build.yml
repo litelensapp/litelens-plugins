@@ -164,6 +164,11 @@ jobs:
           include-hidden-files: false
 
       - name: Upload to release
+        # .sha256 files are computed above and uploaded as build artifacts (previous
+        # step) so the manifest-generation job can read them, but they are no
+        # longer published as standalone release assets — their checksums are
+        # already embedded in the per-plugin manifest.json (see the `manifest`
+        # job below), which is the source of truth for verification.
         if: ${{ inputs.version != 'dev' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -172,10 +177,8 @@ jobs:
           cd build/plugin-bin
           VERSION="${{ steps.resolve-version.outputs.version }}"
           gh release upload "$VERSION" "${{ steps.artifact.outputs.name }}" --repo "${{ github.repository }}" --clobber
-          gh release upload "$VERSION" "${{ steps.artifact.outputs.name }}.sha256" --repo "${{ github.repository }}" --clobber
           if [ "${{ runner.os }}" == "Linux" ]; then
             gh release upload "$VERSION" "${{ steps.artifact.outputs.frontend_name }}" --repo "${{ github.repository }}" --clobber
-            gh release upload "$VERSION" "${{ steps.artifact.outputs.frontend_name }}.sha256" --repo "${{ github.repository }}" --clobber
           fi
 
   manifest:
@@ -336,13 +339,17 @@ jobs:
         shell: bash
         run: jq empty "${{ steps.artifact.outputs.manifest_name }}"
 
-      - name: Upload manifest to release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        shell: bash
-        run: |
-          VERSION="${{ steps.resolve-version.outputs.version }}"
-          gh release upload "$VERSION" "${{ steps.artifact.outputs.manifest_name }}" --repo "${{ github.repository }}" --clobber
+      - name: Upload manifest as workflow artifact
+        # Not published as a release asset — this per-plugin manifest is an
+        # internal hand-off to publish-plugin-registry (cd.yml), which reads it
+        # via download-artifact (by the litelens-plugin-*-manifest naming
+        # convention) to build the aggregate manifest.json, the only
+        # plugin-manifest file end users/installers see on the release.
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ${{ steps.artifact.outputs.manifest_name }}
+          path: ${{ steps.artifact.outputs.manifest_name }}
+          retention-days: 1
 
       - name: Upload logo to release
         env:
