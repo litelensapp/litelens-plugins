@@ -2,8 +2,9 @@ package helm
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"os"
+	"io/fs"
 
 	"github.com/litelensapp/litelens-plugins/plugins/helm/internal/dto"
 	"helm.sh/helm/v3/pkg/helmpath"
@@ -57,7 +58,7 @@ func (s *Service) SetActiveContext(contextName, kubeconfigPath string) error {
 func (s *Service) ListHelmRepositories() ([]dto.HelmRepository, error) {
 	f, err := repo.LoadFile(helmpath.ConfigPath("repositories.yaml"))
 	if err != nil {
-		if os.IsNotExist(err) {
+		if errors.Is(err, fs.ErrNotExist) {
 			return []dto.HelmRepository{}, nil
 		}
 		return []dto.HelmRepository{}, fmt.Errorf("helm: read repositories: %w", err)
