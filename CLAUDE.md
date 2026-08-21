@@ -24,7 +24,9 @@ pnpm install                # install JS workspace deps
 
 pnpm build:helm:fe          # build the helm frontend plugin bundle (tailwind + tsup)
 pnpm test:helm:fe           # run helm frontend tests (vitest) — requires @litelens/design-system
+pnpm test:helm:fe:coverage  # run helm frontend tests with coverage (vitest --coverage)
 pnpm test:helm:be           # go test -race -v ./... inside plugins/helm/
+pnpm test:helm:be:coverage  # go test -race -v -cover -coverprofile=coverage.out ./... inside plugins/helm/
 
 pnpm lint:fe                # eslint plugins/helm/frontend/src
 pnpm lint:be                # go vet + staticcheck (go tool) inside plugins/helm/
