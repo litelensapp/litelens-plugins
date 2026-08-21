@@ -82,6 +82,8 @@ jobs:
 
       - name: Setup Go from go.mod
         uses: ./.github/actions/setup-go
+        with:
+          go-version-file: plugins/${{ inputs.plugin_id }}/go.mod
 
       - name: Setup Node.js + pnpm
         uses: ./.github/actions/setup-node-pnpm
