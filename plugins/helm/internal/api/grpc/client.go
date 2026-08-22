@@ -8,6 +8,7 @@ import (
 	"fmt"
 
 	grpclib "google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/litelensapp/litelens/packages/core/pb"
 )
@@ -20,7 +21,7 @@ type ClusterContextStream interface {
 
 // DialAndSubscribe dials the host's gRPC server and opens the ClusterContextWatch stream.
 func DialAndSubscribe(addr string) (*grpclib.ClientConn, ClusterContextStream, error) {
-	conn, err := grpclib.NewClient(addr, grpclib.WithInsecure())
+	conn, err := grpclib.NewClient(addr, grpclib.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return nil, nil, fmt.Errorf("dial host grpc server: %w", err)
 	}

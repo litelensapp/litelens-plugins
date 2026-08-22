@@ -13,6 +13,7 @@ import (
 	"time"
 
 	grpclib "google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/client-go/discovery"
 	memorycache "k8s.io/client-go/discovery/cached/memory"
@@ -180,7 +181,7 @@ type HostEventEmitter = grpc.HostEventEmitter
 
 // NewHostConnection establishes a gRPC connection to the host server.
 func NewHostConnection(addr string) (*grpclib.ClientConn, error) {
-	return grpclib.NewClient(addr, grpclib.WithInsecure())
+	return grpclib.NewClient(addr, grpclib.WithTransportCredentials(insecure.NewCredentials()))
 }
 
 // NewHostEventEmitter creates a new event emitter using an existing connection.

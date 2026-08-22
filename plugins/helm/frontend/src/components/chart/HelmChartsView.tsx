@@ -17,15 +17,19 @@ import {
   TruncatedText,
 } from "@litelens/design-system";
 import { FC, useState } from "react";
-import { useHelmContext } from "../../HelmContext";
 import { useGetHelmCharts } from "../../hooks/data-access/useGetHelmCharts";
 import { useGetHelmRepositories } from "../../hooks/data-access/useGetHelmRepositories";
 import { HelmChartDetailDrawer } from "./HelmChartDetailDrawer";
 import { HelmChartIcon } from "./HelmChartIcon";
 
 export const HelmChartsView: FC = () => {
-  const { selectedHelmChartName, selectedHelmChartRepo, onToggleHelmChartDetail } =
-    useHelmContext();
+  const [selectedHelmChartRepo, setSelectedHelmChartRepo] = useState<string | null>(null);
+  const [selectedHelmChartName, setSelectedHelmChartName] = useState<string | null>(null);
+
+  function onToggleHelmChartDetail(repo?: string, name?: string) {
+    setSelectedHelmChartRepo(repo ?? null);
+    setSelectedHelmChartName(name ?? null);
+  }
 
   const [search, setSearch] = useState("");
   const [selectedRepos, setSelectedRepos] = useState<Set<string>>(new Set());

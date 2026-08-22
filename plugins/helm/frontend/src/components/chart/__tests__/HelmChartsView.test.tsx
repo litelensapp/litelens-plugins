@@ -6,8 +6,6 @@ import type { HelmChart } from "../../../api/resources";
 
 // ─── hoisted mocks ────────────────────────────────────────────────────────────
 
-const onToggleHelmChartDetailMock = vi.hoisted(() => vi.fn());
-
 vi.mock("../../../hooks/data-access/useGetHelmCharts", () => ({
   useGetHelmCharts: vi.fn(),
 }));
@@ -16,15 +14,14 @@ vi.mock("../../../hooks/data-access/useGetHelmRepositories", () => ({
   useGetHelmRepositories: vi.fn(),
 }));
 
-vi.mock("../../../HelmContext", () => ({
-  useHelmContext: vi.fn(),
+vi.mock("../HelmChartDetailDrawer", () => ({
+  HelmChartDetailDrawer: () => null,
 }));
 
 // ─── imports after mocks ──────────────────────────────────────────────────────
 
 import { useGetHelmCharts } from "../../../hooks/data-access/useGetHelmCharts";
 import { useGetHelmRepositories } from "../../../hooks/data-access/useGetHelmRepositories";
-import { useHelmContext } from "../../../HelmContext";
 import { HelmChartsView } from "../HelmChartsView";
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
@@ -57,19 +54,6 @@ beforeEach(() => {
   vi.clearAllMocks();
   (useGetHelmCharts as ReturnType<typeof vi.fn>).mockReturnValue({ data: [] });
   (useGetHelmRepositories as ReturnType<typeof vi.fn>).mockReturnValue({ data: [] });
-  vi.mocked(useHelmContext).mockReturnValue({
-    activeContext: "default",
-    activeNamespaces: ["default"],
-    selectedHelmChartName: null,
-    selectedHelmChartRepo: null,
-    onToggleHelmChartDetail: onToggleHelmChartDetailMock,
-    selectedHelmReleaseName: null,
-    selectedHelmReleaseNamespace: null,
-    onToggleHelmReleaseDetail: vi.fn(),
-    onNavigateToView: vi.fn(),
-    availableNamespaces: [],
-    unifiedTray: null,
-  } as unknown as ReturnType<typeof useHelmContext>);
 });
 
 // ─── tests ────────────────────────────────────────────────────────────────────

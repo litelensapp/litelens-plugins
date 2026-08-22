@@ -1,4 +1,4 @@
-import { useClusterWideAPI } from "@litelens/core";
+import { clusterWideAPI } from "@litelens/core";
 import {
   AnnotationBadge,
   Button,
@@ -189,7 +189,8 @@ const HelmChartDetailDrawerBody: FC<{ chartName: string; repository: string }> =
   chartName,
   repository,
 }) => {
-  const { activeContext, onNavigateToView, unifiedTray } = useClusterWideAPI();
+  const { activeContext, unifiedTray } = clusterWideAPI.useExposeProperties();
+  const { onNavigateToView } = clusterWideAPI.useExposeMethods();
 
   const [manualVersion, setManualVersion] = useState("");
   const { data: versions = [], isLoading: isVersionsLoading } = useGetHelmChartVersions(

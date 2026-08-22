@@ -13,8 +13,9 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "noEmit": true,
-    "jsx": "react-jsx"
+    "jsx": "react-jsx",
+    "types": ["node"]
   },
-  "include": ["src"],
+  "include": ["src", "tsup.config.ts"],
   "exclude": ["src/**/*.test.ts", "src/**/*.test.tsx"]
 }

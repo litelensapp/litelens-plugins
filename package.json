@@ -20,17 +20,19 @@
     "lint:fe": "eslint plugins/helm/frontend/src",
     "lint:be": "go vet -C plugins/helm ./... && go tool -C plugins/helm staticcheck ./...",
     "prepare": "husky",
-    "upgrade:all": "pnpm up -S -r"
+    "upgrade:all:fe": "ncu -u -t minor --dep prod,dev,optional --workspaces --root && pnpm install",
+    "upgrade:all:be": "go get -C plugins/helm -u -t ./... && go mod tidy -C plugins/helm"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@types/node": "^26.2.0",
-    "eslint": "^10.8.1",
+    "eslint": "^10.9.0",
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.4",
     "globals": "^17.11.0",
     "husky": "^9.1.7",
     "lint-staged": "^17.3.0",
+    "npm-check-updates": "^23.0.2",
     "prettier": "^3.9.6",
     "prettier-plugin-tailwindcss": "^0.8.1",
     "typescript-eslint": "^8.67.0"

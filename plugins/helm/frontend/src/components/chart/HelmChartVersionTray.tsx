@@ -1,4 +1,4 @@
-import { useClusterWideAPI } from "@litelens/core";
+import { clusterWideAPI } from "@litelens/core";
 import {
   Button,
   FullTextSearchInput,
@@ -208,7 +208,7 @@ export const HelmChartVersionTray: FC<HelmChartVersionTrayProps> = ({
 }) => {
   const { repo, chartName, initialVersion, onNavigateToView } = tab;
 
-  const { availableNamespaces: namespaces = [] } = useClusterWideAPI();
+  const { availableNamespaces: namespaces = [] } = clusterWideAPI.useExposeProperties();
 
   const [releaseName, setReleaseName] = useState("");
   const [namespace, setNamespace] = useState("default");

@@ -1,5 +1,6 @@
+import { SharedUnifiedTrayContentProps } from "@litelens/core";
+import { LoadingSpinner } from "@litelens/design-system";
 import { FC, Suspense, lazy } from "react";
-import { LoadingSpinner, type SharedUnifiedTrayContentProps } from "@litelens/design-system";
 import type { HelmChartVersionUpgradeTrayTab } from "./HelmChartVersionUpgradeTray";
 
 // Lazy-loaded so this tray's code ships as a separate chunk, only fetched
