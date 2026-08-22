@@ -16,36 +16,10 @@ module** (dynamically `import()`-ed into the host's own webview, so it shares th
 tree). The two halves — and the host — communicate over four independent channels, each scoped to
 exactly what it needs to do:
 
-```mermaid
-flowchart TB
-    subgraph HOST["Litelens Host App"]
-        direction TB
-        HP["Host Process (Go)<br/>spawns/tracks subprocesses,<br/>gRPC server"]
-        HW["Host Webview (React)<br/>host app's own UI"]
-        PW["Plugin Webview (React)<br/>plugin frontend module, dynamically<br/>import()-ed inline into the host's tree"]
-        HW -. "runtime import()<br/>shares React/context instances" .-> PW
-        PW -- "4 in-process calls via @litelens/core<br/>(resourceLinks, unifiedTray, nav/tray registration)" --> HW
-    end
-
-    subgraph PLUGIN["Helm Plugin Subprocess (Go)"]
-        direction TB
-        PH["HTTP Server<br/>127.0.0.1:&lt;port&gt;"]
-        PG["gRPC Client<br/>(dials the host)"]
-        PS["Service<br/>(Helm SDK + k8s client)"]
-        PH --> PS
-        PG --> PS
-    end
-
-    HW -- "Wails-bound method calls<br/>(cluster switch, plugin install/lifecycle, ...)" --> HP
-    HP -. "Wails event bus<br/>(cluster/plugin state changes)" .-> HW
-    HP -- "1 spawn + stdout handshake<br/>{httpPort, pid}" --> PLUGIN
-    PW -- "2 fetch() business calls<br/>POST /api/helm/&lt;method&gt;" --> PH
-    PG -- "3 dial + watch stream<br/>(pull cluster-context switches)" --> HP
-    PG -. "3 emit async events<br/>(helm:install:complete, ...)" .-> HP
-    HP -. "Wails event bus<br/>relays events + plugin:backendRestarted" .-> PW
-
-    linkStyle 5,9,10 stroke:#f5a623,stroke-width:2px,color:#f5a623
-```
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/architecture/architecture-dark.svg" />
+  <img src="docs/architecture/architecture-light.svg" alt="Litelens host / plugin communication architecture diagram" />
+</picture>
 
 1. **Process lifecycle** (host → plugin, host-driven): the host spawns the plugin as an OS
    subprocess and parses its one-line JSON stdout handshake (`{"type":"READY","httpPort":...}`) to
