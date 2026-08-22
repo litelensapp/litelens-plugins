@@ -1,4 +1,4 @@
-import { useClusterWideAPI } from "@litelens/core";
+import { clusterWideAPI } from "@litelens/core";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -19,7 +19,6 @@ import {
   TableSkeletonLoader,
 } from "@litelens/design-system";
 import { FC, useState } from "react";
-import { useHelmContext } from "../../HelmContext";
 import { useGetHelmReleases } from "../../hooks/data-access/useGetHelmReleases";
 import {
   useDeleteHelmRelease,
@@ -53,7 +52,7 @@ const HelmReleaseTableCtaButtons: FC<HelmReleaseTableCtaButtonsProps> = ({
   valuesYAML,
   revision,
 }) => {
-  const { activeContext, unifiedTray } = useClusterWideAPI();
+  const { activeContext, unifiedTray } = clusterWideAPI.useExposeProperties();
 
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [cleanupModalOpen, setCleanupModalOpen] = useState(false);
@@ -156,9 +155,17 @@ const HelmReleaseTableCtaButtons: FC<HelmReleaseTableCtaButtonsProps> = ({
 };
 
 export const HelmReleasesView: FC = () => {
-  const { selectedHelmReleaseName, selectedHelmReleaseNamespace, onToggleHelmReleaseDetail } =
-    useHelmContext();
-  const { activeContext, activeNamespaces, resourceLinks } = useClusterWideAPI();
+  const [selectedHelmReleaseNamespace, setSelectedHelmReleaseNamespace] = useState<string | null>(
+    null
+  );
+  const [selectedHelmReleaseName, setSelectedHelmReleaseName] = useState<string | null>(null);
+
+  function onToggleHelmReleaseDetail(namespace?: string, name?: string) {
+    setSelectedHelmReleaseNamespace(namespace ?? null);
+    setSelectedHelmReleaseName(name ?? null);
+  }
+
+  const { activeContext, activeNamespaces, resourceLinks } = clusterWideAPI.useExposeProperties();
 
   const [search, setSearch] = useState("");
 

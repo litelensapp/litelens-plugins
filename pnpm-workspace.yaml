@@ -6,15 +6,15 @@ allowBuilds:
 catalog:
   "@testing-library/jest-dom": ^6.9.1
   "@testing-library/react": ^16.3.2
+  "@types/node": ^26.2.0
   "@types/react": ^19.2.18
   "@types/react-dom": ^19.2.4
   "@vitejs/plugin-react": ^6.0.5
   "@vitest/coverage-v8": ^4.1.11
   cross-env: ^10.1.0
-  esbuild-visualizer: ^0.7.0
   jsdom: ^29.1.1
   typescript: ^6.0.3
   vitest: ^4.1.11
 minimumReleaseAgeExclude:
-  - '@litelens/core@1.7.0'
-  - '@litelens/design-system@1.7.0'
+  - '@litelens/core@1.0.0-local.4 || 1.0.0-local.5 || 1.0.0-local.7 || 1.0.0-local.8 || 1.0.0-local.9 || 1.0.0-local.10 || 1.0.0-local.11 || 1.0.0-local.12 || 1.0.0-local.13 || 1.0.0-local.14 || 1.0.0-local.15 || 1.0.0-local.16 || 1.0.0-local.17 || 1.0.0-local.18 || 1.7.0'
+  - eslint@10.9.0

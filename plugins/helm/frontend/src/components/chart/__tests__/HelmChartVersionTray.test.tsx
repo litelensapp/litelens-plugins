@@ -18,15 +18,16 @@ vi.mock("../../../hooks/data-mutation/useInstallHelmChart", () => ({
 }));
 
 vi.mock("@litelens/core", () => ({
-  useClusterWideAPI: vi.fn(() => ({
-    activeContext: "ctx-test",
-    activeNamespaces: [],
-    activeResource: "helm-charts",
-    availableNamespaces: [],
-    onNavigateToView: vi.fn(),
-    resourceLinks: {},
-    unifiedTray: null,
-  })),
+  clusterWideAPI: {
+    useExposeProperties: vi.fn(() => ({
+      activeContext: "ctx-test",
+      activeNamespaces: [],
+      activeResource: "helm-charts",
+      availableNamespaces: [],
+      resourceLinks: {},
+      unifiedTray: null,
+    })),
+  },
 }));
 
 // ─── imports after mocks ──────────────────────────────────────────────────────
@@ -34,7 +35,6 @@ vi.mock("@litelens/core", () => ({
 import { useGetHelmChartValues } from "../../../hooks/data-access/useGetHelmChartValues";
 import { useGetHelmChartVersions } from "../../../hooks/data-access/useGetHelmChartVersions";
 import { useInstallHelmChart } from "../../../hooks/data-mutation/useInstallHelmChart";
-import { HelmProvider } from "../../../HelmContext";
 import { HelmChartVersionTray } from "../HelmChartVersionTray";
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
@@ -42,11 +42,7 @@ import { HelmChartVersionTray } from "../HelmChartVersionTray";
 function makeWrapper() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return ({ children }: { children: React.ReactNode }) =>
-    createElement(
-      QueryClientProvider,
-      { client },
-      createElement(HelmProvider, { children }, children)
-    );
+    createElement(QueryClientProvider, { client }, children);
 }
 
 const testTab = {

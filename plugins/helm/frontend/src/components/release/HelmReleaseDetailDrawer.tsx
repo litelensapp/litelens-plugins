@@ -1,4 +1,4 @@
-import { useClusterWideAPI } from "@litelens/core";
+import { clusterWideAPI } from "@litelens/core";
 import {
   ButtonGroup,
   FullTextSearchInput,
@@ -103,7 +103,7 @@ const HelmReleaseOverviewTab: FC<{ data: HelmReleaseDetail }> = ({ data }) => {
 };
 
 const HelmReleaseResourcesTab: FC<{ resources: HelmReleaseResource[] }> = ({ resources }) => {
-  const { resourceLinks } = useClusterWideAPI();
+  const { resourceLinks } = clusterWideAPI.useExposeProperties();
 
   if (resources.length === 0) {
     return (
@@ -189,7 +189,7 @@ const HelmReleaseDrawerCtaButtons: FC<{
   namespace: string;
   onDeleted: () => void;
 }> = ({ data, name, namespace, onDeleted }) => {
-  const { activeContext, unifiedTray } = useClusterWideAPI();
+  const { activeContext, unifiedTray } = clusterWideAPI.useExposeProperties();
 
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showCleanupModal, setShowCleanupModal] = useState(false);
@@ -277,7 +277,7 @@ const HelmReleaseDetailDrawerBody: FC<
     onDataChange: (data: HelmReleaseDetail | undefined) => void;
   }
 > = ({ releaseName, namespace, onDataChange }) => {
-  const { activeContext } = useClusterWideAPI();
+  const { activeContext } = clusterWideAPI.useExposeProperties();
   const { data, isLoading } = useGetHelmReleaseDetail(activeContext, namespace, releaseName);
 
   useEffect(() => {
@@ -331,7 +331,7 @@ export const HelmReleaseDetailDrawer: FC<HelmReleaseDetailDrawerProps> = ({
   open,
   onClose,
 }) => {
-  const { activeContext } = useClusterWideAPI();
+  const { activeContext } = clusterWideAPI.useExposeProperties();
 
   const hasData = !!activeContext && !!namespace && !!releaseName;
 

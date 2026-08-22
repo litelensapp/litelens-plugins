@@ -26,12 +26,15 @@ vi.mock("../../../hooks/data-mutation/useInstallHelmChart", () => ({
 }));
 
 vi.mock("@litelens/core", () => ({
-  useClusterWideAPI: vi.fn(),
+  clusterWideAPI: {
+    useExposeProperties: vi.fn(),
+    useExposeMethods: vi.fn(),
+  },
 }));
 
 // ─── imports after mocks ──────────────────────────────────────────────────────
 
-import { useClusterWideAPI } from "@litelens/core";
+import { clusterWideAPI } from "@litelens/core";
 import { useGetHelmChartVersions } from "../../../hooks/data-access/useGetHelmChartVersions";
 import { useGetHelmChartDetail } from "../../../hooks/data-access/useGetHelmChartDetail";
 import { useGetArtifactHubReadme } from "../../../hooks/data-access/useGetArtifactHubReadme";
@@ -79,11 +82,10 @@ beforeEach(() => {
     mutate: vi.fn(),
     isPending: false,
   });
-  vi.mocked(useClusterWideAPI).mockReturnValue({
+  vi.mocked(clusterWideAPI.useExposeProperties).mockReturnValue({
     activeContext: "default",
     activeNamespaces: ["default"],
     activeResource: "helm-charts",
-    onNavigateToView: vi.fn(),
     availableNamespaces: [],
     resourceLinks: {},
     unifiedTray: {
@@ -98,7 +100,10 @@ beforeEach(() => {
       closeAll: vi.fn(),
       setSnapPoint: vi.fn(),
     },
-  } as unknown as ReturnType<typeof useClusterWideAPI>);
+  } as unknown as ReturnType<typeof clusterWideAPI.useExposeProperties>);
+  vi.mocked(clusterWideAPI.useExposeMethods).mockReturnValue({
+    onNavigateToView: vi.fn(),
+  } as unknown as ReturnType<typeof clusterWideAPI.useExposeMethods>);
 });
 
 // ─── tests ────────────────────────────────────────────────────────────────────

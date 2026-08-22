@@ -12,6 +12,9 @@ catalogs:
     '@testing-library/react':
       specifier: ^16.3.2
       version: 16.3.2
+    '@types/node':
+      specifier: ^26.2.0
+      version: 26.2.0
     '@types/react':
       specifier: ^19.2.18
       version: 19.2.18
@@ -27,9 +30,6 @@ catalogs:
     cross-env:
       specifier: ^10.1.0
       version: 10.1.0
-    esbuild-visualizer:
-      specifier: ^0.7.0
-      version: 0.7.0
     jsdom:
       specifier: ^29.1.1
       version: 29.1.1
@@ -84,8 +84,8 @@ importers:
   plugins/helm/frontend:
     dependencies:
       '@litelens/core':
-        specifier: ^1.7.0
-        version: 1.7.0(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+        specifier: 1.0.0-local.18
+        version: 1.0.0-local.18(@tanstack/react-query@5.101.4(react@19.2.8))(jiti@2.7.0)(postcss@8.5.26)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(typescript@6.0.3)(yaml@2.9.0)
       '@litelens/design-system':
         specifier: ^1.7.0
         version: 1.7.0(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(tailwindcss@4.3.3)(typescript@6.0.3)
@@ -99,15 +99,15 @@ importers:
         specifier: ^19.2.8
         version: 19.2.8(react@19.2.8)
     devDependencies:
-      '@tailwindcss/cli':
-        specifier: ^4.3.3
-        version: 4.3.3
       '@testing-library/jest-dom':
         specifier: 'catalog:'
         version: 6.9.1
       '@testing-library/react':
         specifier: 'catalog:'
         version: 16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.2.0
       '@types/react':
         specifier: 'catalog:'
         version: 19.2.18
@@ -123,9 +123,6 @@ importers:
       cross-env:
         specifier: 'catalog:'
         version: 10.1.0
-      esbuild-visualizer:
-        specifier: 'catalog:'
-        version: 0.7.0
       jsdom:
         specifier: 'catalog:'
         version: 29.1.1
@@ -643,9 +640,10 @@ packages:
   '@jridgewell/trace-mapping@0.3.31':
     resolution: {integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==}
 
-  '@litelens/core@1.7.0':
-    resolution: {integrity: sha512-U5LaaYgKn1tIgq1bRcIK+DqkKvULRngKTjFvh3QEsAu0s0P3qZpw0BvQt383l0ehors4RURv3XqBl+BxjHpHpg==}
+  '@litelens/core@1.0.0-local.18':
+    resolution: {integrity: sha512-+EVUGdYuQpvSbD2nFBSO73AX6P38iqDQxteCes63rzOCx2/HOiUSbRHrlP6gZ3HkBDchLboH1rw68fthxgcC4g==}
     peerDependencies:
+      '@tanstack/react-query': ^5.101.4
       react: ^19.0.0
       react-dom: ^19.0.0
 
@@ -4160,10 +4158,23 @@ snapshots:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
 
-  '@litelens/core@1.7.0(react-dom@19.2.8(react@19.2.8))(react@19.2.8)':
+  '@litelens/core@1.0.0-local.18(@tanstack/react-query@5.101.4(react@19.2.8))(jiti@2.7.0)(postcss@8.5.26)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(typescript@6.0.3)(yaml@2.9.0)':
     dependencies:
+      '@tailwindcss/cli': 4.3.3
+      '@tanstack/react-query': 5.101.4(react@19.2.8)
+      esbuild-visualizer: 0.7.0
       react: 19.2.8
       react-dom: 19.2.8(react@19.2.8)
+      tsup: 8.5.1(jiti@2.7.0)(postcss@8.5.26)(typescript@6.0.3)(yaml@2.9.0)
+    transitivePeerDependencies:
+      - '@microsoft/api-extractor'
+      - '@swc/core'
+      - jiti
+      - postcss
+      - supports-color
+      - tsx
+      - typescript
+      - yaml
 
   '@litelens/design-system@1.7.0(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(tailwindcss@4.3.3)(typescript@6.0.3)':
     dependencies:
