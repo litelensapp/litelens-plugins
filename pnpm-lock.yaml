@@ -7,8 +7,8 @@ settings:
 catalogs:
   default:
     '@testing-library/jest-dom':
-      specifier: ^6.9.1
-      version: 6.9.1
+      specifier: ^6.10.0
+      version: 6.10.0
     '@testing-library/react':
       specifier: ^16.3.2
       version: 16.3.2
@@ -22,7 +22,7 @@ catalogs:
       specifier: ^19.2.4
       version: 19.2.4
     '@vitejs/plugin-react':
-      specifier: ^6.0.5
+      specifier: ^6.1.0
       version: 6.1.0
     '@vitest/coverage-v8':
       specifier: ^4.1.11
@@ -84,11 +84,11 @@ importers:
   plugins/helm/frontend:
     dependencies:
       '@litelens/core':
-        specifier: 1.0.0-local.18
-        version: 1.0.0-local.18(@tanstack/react-query@5.101.4(react@19.2.8))(jiti@2.7.0)(postcss@8.5.26)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(typescript@6.0.3)(yaml@2.9.0)
+        specifier: 1.7.3
+        version: 1.7.3(@tanstack/react-query@5.101.4(react@19.2.8))(jiti@2.7.0)(postcss@8.5.26)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(typescript@6.0.3)(yaml@2.9.0)
       '@litelens/design-system':
-        specifier: ^1.7.0
-        version: 1.7.0(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(tailwindcss@4.3.3)(typescript@6.0.3)
+        specifier: ^1.7.3
+        version: 1.7.3(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(tailwindcss@4.3.3)(typescript@6.0.3)
       '@tanstack/react-query':
         specifier: ^5.101.4
         version: 5.101.4(react@19.2.8)
@@ -101,7 +101,7 @@ importers:
     devDependencies:
       '@testing-library/jest-dom':
         specifier: 'catalog:'
-        version: 6.9.1
+        version: 6.10.0(@testing-library/dom@10.4.1)
       '@testing-library/react':
         specifier: 'catalog:'
         version: 16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
@@ -640,15 +640,15 @@ packages:
   '@jridgewell/trace-mapping@0.3.31':
     resolution: {integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==}
 
-  '@litelens/core@1.0.0-local.18':
-    resolution: {integrity: sha512-+EVUGdYuQpvSbD2nFBSO73AX6P38iqDQxteCes63rzOCx2/HOiUSbRHrlP6gZ3HkBDchLboH1rw68fthxgcC4g==}
+  '@litelens/core@1.7.3':
+    resolution: {integrity: sha512-9fDM8EDZgsPsDUBDnJehYr5G7Un3Igxc2TB7N4cfQ5YW6TxO4UrPlFWRc4fPu3I1mql0M24GrxZoDK8k1mIlCw==}
     peerDependencies:
       '@tanstack/react-query': ^5.101.4
       react: ^19.0.0
       react-dom: ^19.0.0
 
-  '@litelens/design-system@1.7.0':
-    resolution: {integrity: sha512-/kNMAUo+38zHHAX6bvQfMd8nH6MWp5y0gMwkekkk7p8fz6b7fdDfWKJzsvfN3Zr3jLCzZRZBYM4hnKVHvTy1Rg==}
+  '@litelens/design-system@1.7.3':
+    resolution: {integrity: sha512-3u8syjgY5Y/bXjyGp3d2CqD7OMsNWGoCTQbqzfZOsNF2xIMCBoTbr/LBBWs87gXvrXtnF7EvkVWlBqpx8gd2bw==}
     peerDependencies:
       react: ^19.0.0
       react-dom: ^19.0.0
@@ -1126,9 +1126,12 @@ packages:
     resolution: {integrity: sha512-o4PXJQidqJl82ckFaXUeoAW+XysPLauYI43Abki5hABd853iMhitooc6znOnczgbTYmEP6U6/y1ZyKAIsvMKGg==}
     engines: {node: '>=18'}
 
-  '@testing-library/jest-dom@6.9.1':
-    resolution: {integrity: sha512-zIcONa+hVtVSSep9UT3jZ5rizo2BsxgyDYU7WFD5eICBE7no3881HGeb/QkGfsJs6JTkY1aQhT7rIPC7e+0nnA==}
-    engines: {node: '>=14', npm: '>=6', yarn: '>=1'}
+  '@testing-library/jest-dom@6.10.0':
+    resolution: {integrity: sha512-HQwu0KaB2zyT0iLzBL+8CLyZDL3KlZlZJ+2iyc9uCUnlJVskJU/UlPuVCyIPhtukjPQdT2QNoR5nCP5FqTmmDQ==}
+    engines: {node: '>=22', npm: '>=6', yarn: '>=1'}
+    deprecated: Incorrect minor release with breaking changes (Node >=22 and required @testing-library/dom peer). Use 6.9.1 for the 6.x line, or upgrade to 7.0.0.
+    peerDependencies:
+      '@testing-library/dom': '>=10 <11'
 
   '@testing-library/react@16.3.2':
     resolution: {integrity: sha512-XU5/SytQM+ykqMnAnvB2umaJNIOsLF3PVv//1Ew4CTcpz0/BRyy/af40qqrt7SjKpDdT1saBMc42CUok5gaw+g==}
@@ -3148,8 +3151,8 @@ packages:
   setprototypeof@1.2.0:
     resolution: {integrity: sha512-E5LDX7Wrp85Kil5bhZv46j8jOeboKq5JMmYM3gVGdGH8xFpPWXUMsNrlODCrkoxMEeNi/XZIwuRvY4XNwYMJpw==}
 
-  shadcn@4.18.0:
-    resolution: {integrity: sha512-tUFZgkYmfVNQVm3xX7lhSzOvDsp+O14ac5dwgXIr5mIsr79ISueb/Mu+ZtWMz0DH6v77u4eYyvbQ9TTMpSn3aw==}
+  shadcn@4.19.0:
+    resolution: {integrity: sha512-EQF6R+CUXTsEP2BpyhxrUEAFesrtFD1POvVOf5jM+wkgtA4kG1EW1+1Wlmi9LqiprSL681JJXBcS0u8WkVVVyQ==}
     engines: {node: '>=20.18.1'}
     hasBin: true
 
@@ -4158,7 +4161,7 @@ snapshots:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
 
-  '@litelens/core@1.0.0-local.18(@tanstack/react-query@5.101.4(react@19.2.8))(jiti@2.7.0)(postcss@8.5.26)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(typescript@6.0.3)(yaml@2.9.0)':
+  '@litelens/core@1.7.3(@tanstack/react-query@5.101.4(react@19.2.8))(jiti@2.7.0)(postcss@8.5.26)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(typescript@6.0.3)(yaml@2.9.0)':
     dependencies:
       '@tailwindcss/cli': 4.3.3
       '@tanstack/react-query': 5.101.4(react@19.2.8)
@@ -4176,7 +4179,7 @@ snapshots:
       - typescript
       - yaml
 
-  '@litelens/design-system@1.7.0(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(tailwindcss@4.3.3)(typescript@6.0.3)':
+  '@litelens/design-system@1.7.3(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(tailwindcss@4.3.3)(typescript@6.0.3)':
     dependencies:
       '@base-ui/react': 1.7.0(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       '@fontsource-variable/inter': 5.3.0
@@ -4189,7 +4192,7 @@ snapshots:
       react-dom: 19.2.8(react@19.2.8)
       react-markdown: 10.1.0(@types/react@19.2.18)(react@19.2.8)
       remark-gfm: 4.0.1
-      shadcn: 4.18.0(typescript@6.0.3)
+      shadcn: 4.19.0(typescript@6.0.3)
       sonner: 2.0.8(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       tailwind-merge: 3.6.0
       tailwindcss: 4.3.3
@@ -4519,9 +4522,10 @@ snapshots:
       picocolors: 1.1.1
       pretty-format: 27.5.1
 
-  '@testing-library/jest-dom@6.9.1':
+  '@testing-library/jest-dom@6.10.0(@testing-library/dom@10.4.1)':
     dependencies:
       '@adobe/css-tools': 4.5.0
+      '@testing-library/dom': 10.4.1
       aria-query: 5.3.2
       css.escape: 1.5.1
       dom-accessibility-api: 0.6.3
@@ -6693,7 +6697,7 @@ snapshots:
 
   setprototypeof@1.2.0: {}
 
-  shadcn@4.18.0(typescript@6.0.3):
+  shadcn@4.19.0(typescript@6.0.3):
     dependencies:
       '@babel/core': 7.29.7
       '@babel/parser': 7.29.8
