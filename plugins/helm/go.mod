@@ -3,7 +3,7 @@ module github.com/litelensapp/litelens-plugins/plugins/helm
 go 1.26.5
 
 require (
-	github.com/litelensapp/litelens/packages/core v1.7.1
+	github.com/litelensapp/litelens/packages/core v1.7.4
 	google.golang.org/grpc v1.83.1
 	helm.sh/helm/v3 v3.21.4
 	k8s.io/api v0.36.4
@@ -38,7 +38,7 @@ require (
 	github.com/go-gorp/gorp/v3 v3.1.0 // indirect
 	github.com/go-logr/logr v1.4.4 // indirect
 	github.com/go-openapi/jsonpointer v1.0.0 // indirect
-	github.com/go-openapi/jsonreference v1.0.0 // indirect
+	github.com/go-openapi/jsonreference v1.0.1 // indirect
 	github.com/go-openapi/swag v0.29.1 // indirect
 	github.com/go-openapi/swag/cmdutils v0.29.1 // indirect
 	github.com/go-openapi/swag/conv v0.29.1 // indirect
@@ -130,8 +130,3 @@ require (
 )
 
 tool honnef.co/go/tools/cmd/staticcheck
-
-// TEMPORARY (dev-only): points at the in-progress ActiveNamespacesWatch RPC in the
-// host repo's packages/core, which is not yet tagged/released. Remove this replace
-// once packages/core is tagged with the new RPC and go.mod's require is bumped.
-replace github.com/litelensapp/litelens/packages/core => ../../../litelens/packages/core
