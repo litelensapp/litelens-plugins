@@ -190,7 +190,3 @@ contributing, you agree to license your contribution under the same terms.
 ---
 
 Thanks for contributing! Please reach out with questions or feedback.
-
-```sh
-ln -s $PWD/.output  $HOME/Work/tech-projects/personal/litelens-app/litelens/build/storage/plugins
-```

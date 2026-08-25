@@ -40,10 +40,10 @@ func (l *LockedService) ListHelmRepositories() ([]dto.HelmRepository, error) {
 	return l.svc.ListHelmRepositories()
 }
 
-func (l *LockedService) ListHelmReleases(namespace string) ([]dto.HelmRelease, error) {
+func (l *LockedService) ListHelmReleases() ([]dto.HelmRelease, error) {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
-	return l.svc.ListHelmReleases(namespace)
+	return l.svc.ListHelmReleases()
 }
 
 func (l *LockedService) ListHelmChartVersions(repository, chartName string) ([]string, error) {

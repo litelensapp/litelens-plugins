@@ -26,13 +26,25 @@ import (
 // HelmRepositoryLabel is the release label key used to store the chart's source repository.
 const HelmRepositoryLabel = "meta.litelens.io/helm-repository-name"
 
-func (s *Service) ListHelmReleases(namespace string) ([]dto.HelmRelease, error) {
+// ListHelmReleases returns releases visible in the host's active namespace filter
+// (ClusterProvider.ActiveNamespaces, synced from the host over the
+// ActiveNamespacesWatch gRPC stream — see kube.WatchActiveNamespaces). An empty
+// slice means cluster-wide (no filter). Helm's action.List only supports a single
+// namespace or all-namespaces natively, so for 2+ specific namespaces this lists
+// all-namespaces and filters the result here.
+func (s *Service) ListHelmReleases() ([]dto.HelmRelease, error) {
 	cs, rc, activeCtx, kubeconfigPaths := s.provider.ActiveClients()
 	if cs == nil {
 		return []dto.HelmRelease{}, nil
 	}
 	if rc == nil {
 		return []dto.HelmRelease{}, nil
+	}
+
+	namespaces := s.provider.ActiveNamespaces()
+	namespace := ""
+	if len(namespaces) == 1 {
+		namespace = namespaces[0]
 	}
 
 	getter := &helmrest.Getter{
@@ -54,10 +66,23 @@ func (s *Service) ListHelmReleases(namespace string) ([]dto.HelmRelease, error) 
 		return []dto.HelmRelease{}, fmt.Errorf("helm: list releases: %w", err)
 	}
 
+	var namespaceSet map[string]struct{}
+	if len(namespaces) > 1 {
+		namespaceSet = make(map[string]struct{}, len(namespaces))
+		for _, ns := range namespaces {
+			namespaceSet[ns] = struct{}{}
+		}
+	}
+
 	result := make([]dto.HelmRelease, 0, len(releases))
 	for _, r := range releases {
 		if r.Chart == nil || r.Chart.Metadata == nil {
 			continue
+		}
+		if namespaceSet != nil {
+			if _, ok := namespaceSet[r.Namespace]; !ok {
+				continue
+			}
 		}
 		repository := ""
 		if r.Labels != nil {

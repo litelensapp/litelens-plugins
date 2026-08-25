@@ -54,9 +54,10 @@ func main() {
 	}
 	helmService := helm.NewLockedService(helm.NewService(clusterProvider, eventEmitFn))
 
-	// Subscribe to cluster context changes from the host
+	// Subscribe to cluster context and active-namespaces changes from the host
 	if hostPort != "" {
 		go kube.WatchClusterContext(hostPort, clusterProvider)
+		go kube.WatchActiveNamespaces(hostPort, clusterProvider)
 	}
 
 	// Serve HTTP server (blocks for the process lifetime)

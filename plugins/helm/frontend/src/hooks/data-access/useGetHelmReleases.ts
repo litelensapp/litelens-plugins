@@ -3,7 +3,6 @@ import { DEFAULT_QUERY_OPTIONS } from "../../api/api";
 import { QUERY_KEY_HELM_RELEASES } from "../../api/api.const";
 import type { HelmRelease } from "../../api/resources";
 import { ListHelmReleases } from "../../api/resources";
-import { filterByNamespaces, getEffectiveNamespace } from "../../utils";
 
 interface UseGetHelmReleasesParams {
   context: string;
@@ -11,11 +10,12 @@ interface UseGetHelmReleasesParams {
 }
 
 export const useGetHelmReleases = ({ context, namespaces }: UseGetHelmReleasesParams) => {
-  const effectiveNamespace = getEffectiveNamespace(namespaces);
-
   return useQuery<HelmRelease[], Error>({
-    queryKey: [QUERY_KEY_HELM_RELEASES, context, effectiveNamespace],
-    queryFn: async () => filterByNamespaces(await ListHelmReleases(effectiveNamespace), namespaces),
+    // namespaces is no longer sent to the backend (the plugin sources its filter from
+    // the host's ActiveNamespacesWatch gRPC push), but stays in the key so a local
+    // namespace-selection change still triggers a refetch.
+    queryKey: [QUERY_KEY_HELM_RELEASES, context, namespaces],
+    queryFn: () => ListHelmReleases(),
     ...DEFAULT_QUERY_OPTIONS,
     enabled: !!context,
   });

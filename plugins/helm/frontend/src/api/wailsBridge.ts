@@ -102,8 +102,8 @@ export const ListHelmCharts = (): Promise<HelmChart[]> =>
 export const ListHelmRepositories = (): Promise<HelmRepository[]> =>
   fetchWithRetry<HelmRepository[]>("listRepositories", {});
 
-export const ListHelmReleases = (namespace: string): Promise<HelmRelease[]> =>
-  fetchWithRetry<HelmRelease[]>("listReleases", { Namespace: namespace });
+export const ListHelmReleases = (): Promise<HelmRelease[]> =>
+  fetchWithRetry<HelmRelease[]>("listReleases", {});
 
 export const ListHelmChartVersions = (repository: string, chartName: string): Promise<string[]> =>
   fetchWithRetry<string[]>("listChartVersions", {

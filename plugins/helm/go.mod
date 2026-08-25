@@ -130,3 +130,8 @@ require (
 )
 
 tool honnef.co/go/tools/cmd/staticcheck
+
+// TEMPORARY (dev-only): points at the in-progress ActiveNamespacesWatch RPC in the
+// host repo's packages/core, which is not yet tagged/released. Remove this replace
+// once packages/core is tagged with the new RPC and go.mod's require is bumped.
+replace github.com/litelensapp/litelens/packages/core => ../../../litelens/packages/core

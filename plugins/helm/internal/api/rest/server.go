@@ -161,7 +161,7 @@ func (g *Getter) ToRawKubeConfigLoader() clientcmd.ClientConfig {
 type Service interface {
 	ListHelmCharts() ([]dto.HelmChart, error)
 	ListHelmRepositories() ([]dto.HelmRepository, error)
-	ListHelmReleases(namespace string) ([]dto.HelmRelease, error)
+	ListHelmReleases() ([]dto.HelmRelease, error)
 	ListHelmChartVersions(repository, chartName string) ([]string, error)
 	GetHelmChartDetail(repository, chartName, version string) (dto.HelmChartDetail, error)
 	GetArtifactHubReadme(repository, chartName, version string) (string, error)
