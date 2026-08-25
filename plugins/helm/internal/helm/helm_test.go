@@ -56,6 +56,10 @@ func (p *mockMutableClusterProvider) ActiveClients() (cs *kubernetes.Clientset, 
 	return p.cs, p.rc, p.activeContext, []string{p.kubeconfigPath}
 }
 
+func (p *mockMutableClusterProvider) ActiveNamespaces() []string {
+	return nil
+}
+
 func (p *mockMutableClusterProvider) Ctx() context.Context {
 	return p.ctx
 }

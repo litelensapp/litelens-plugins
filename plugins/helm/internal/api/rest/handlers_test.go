@@ -32,7 +32,7 @@ func (s *stubService) ListHelmCharts() ([]dto.HelmChart, error) { return s.chart
 func (s *stubService) ListHelmRepositories() ([]dto.HelmRepository, error) {
 	return nil, nil
 }
-func (s *stubService) ListHelmReleases(namespace string) ([]dto.HelmRelease, error) {
+func (s *stubService) ListHelmReleases() ([]dto.HelmRelease, error) {
 	return nil, nil
 }
 func (s *stubService) ListHelmChartVersions(repository, chartName string) ([]string, error) {
@@ -124,29 +124,6 @@ func TestListCharts_ServiceError(t *testing.T) {
 	}
 	if got.Code != "PLUGIN_UNAVAILABLE" {
 		t.Fatalf("expected PLUGIN_UNAVAILABLE, got %q", got.Code)
-	}
-}
-
-func TestListReleases_MalformedBody(t *testing.T) {
-	svc := &stubService{}
-	srv := newTestServer(svc)
-	defer srv.Close()
-
-	resp, err := http.Post(srv.URL+"/api/helm/listReleases", "application/json", bytes.NewReader([]byte("not json")))
-	if err != nil {
-		t.Fatalf("request failed: %v", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusBadRequest {
-		t.Fatalf("expected 400, got %d", resp.StatusCode)
-	}
-	var got ErrorResponse
-	if err := json.NewDecoder(resp.Body).Decode(&got); err != nil {
-		t.Fatalf("decode response: %v", err)
-	}
-	if got.Code != "INVALID_REQUEST" {
-		t.Fatalf("expected INVALID_REQUEST, got %q", got.Code)
 	}
 }
 

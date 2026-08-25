@@ -90,7 +90,7 @@ describe("wailsBridge", () => {
         json: async () => errorPayload,
       });
 
-      await expect(ListHelmReleases("invalid-ns")).rejects.toEqual(errorPayload);
+      await expect(ListHelmReleases()).rejects.toEqual(errorPayload);
       // Verify GetPluginBackendAddr was called only once (no retry)
       expect(mockGetPluginBackendAddr).toHaveBeenCalledTimes(1);
     });
@@ -111,7 +111,7 @@ describe("wailsBridge", () => {
           json: async () => mockData,
         });
 
-      const result = await ListHelmReleases("default");
+      const result = await ListHelmReleases();
 
       expect(result).toEqual(mockData);
       // Verify GetPluginBackendAddr was called twice (initial + refetch)

@@ -60,13 +60,7 @@ func (h *Handler) listRepositories(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) listReleases(w http.ResponseWriter, r *http.Request) {
-	var req struct{ Namespace string }
-	if ok, err := decodeBody(r, &req); !ok {
-		fmt.Fprintf(os.Stderr, "error: decode list releases request: %v\n", err)
-		writeError(w, http.StatusBadRequest, "INVALID_REQUEST", "invalid request body")
-		return
-	}
-	result, err := h.svc.ListHelmReleases(req.Namespace)
+	result, err := h.svc.ListHelmReleases()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: list releases: %v\n", err)
 		writeError(w, http.StatusServiceUnavailable, "PLUGIN_UNAVAILABLE", "failed to list releases")

@@ -28,12 +28,8 @@ should follow.
 pnpm install       # installs the JS workspace (plugins/helm/frontend)
 ```
 
-`pnpm install` requires a local Verdaccio registry running for the `@litelens` npm scope (see
-`.npmrc`) — `@litelens/core` has no public npm release yet, so pnpm resolves it from
-`http://localhost:4873/` instead. Ask an existing contributor how they run Verdaccio locally, or how
-their workspace links `@litelens/design-system` and `@litelens/core`, before assuming `pnpm install`
-or `pnpm test:helm:fe` is broken — this is expected friction until those packages ship to the real
-registry.
+`@litelens/core` and `@litelens/design-system` resolve from the normal npm registry — no local
+Verdaccio instance or custom `.npmrc` scope override is needed anymore.
 
 ## Repo layout
 
@@ -43,25 +39,19 @@ registry.
   `go.mod` per plugin whose backend needs heavy dependencies (e.g. `plugins/helm/go.mod` depends on
   `helm.sh/helm/v3` and `k8s.io/client-go`) that shouldn't pollute the root module or every other
   plugin's build.
-- **`go.work`** — a temporary workspace shim substituting an on-disk sibling `litelens/packages/core`
-  checkout for the unreleased `packages/core` module dependency. See below.
 
-## Working against an unreleased `packages/core`
+## `packages/core` releases
 
-`plugins/helm/go.mod` requires `github.com/litelensapp/litelens/packages/core@v0.1.0`, and
-`plugins/helm/frontend/package.json` requires `@litelens/core` — neither has a real tagged release
-yet. Two shims paper over this in the meantime, and **both must be removed together** once
-`packages/core` ships a real, aged release:
+`plugins/helm/go.mod` requires the tagged `github.com/litelensapp/litelens/packages/core` module
+directly (no `go.work` shim or local `replace` directive), and
+`plugins/helm/frontend/package.json` requires the published `@litelens/core` npm package (no local
+Verdaccio registry). Bumping either dependency is a normal version bump in the respective
+manifest — `go get -u` / `ncu` — plus a lockfile update; there's no sibling-checkout or local-registry
+step involved anymore.
 
-- root `go.work` — `use (../litelens/packages/core ./plugins/helm)` points Go at the sibling
-  checkout instead of the versioned module.
-- root `.npmrc` — points the `@litelens` npm scope at a local Verdaccio instance serving
-  pre-release `@litelens/core` versions, and `pnpm-workspace.yaml`'s `minimumReleaseAgeExclude`
-  allow-lists those exact pre-release versions so pnpm doesn't flag them as suspiciously fresh.
-
-Do not treat either shim as a model for permanent dependency management — they exist solely because
-the host repo hasn't cut a real release yet. See `.claude/memory/go_work_removal_todo.md` for the
-exact Go-side removal steps once a tag exists.
+`pnpm-workspace.yaml`'s `minimumReleaseAgeExclude` still allow-lists specific `@litelens/core` and
+`@litelens/design-system` versions so pnpm doesn't flag freshly-published releases as suspiciously
+new — update that list's version pins when bumping those packages.
 
 ## Building, testing, linting
 
@@ -136,7 +126,7 @@ Using `plugins/helm/` as the reference implementation:
   the host app in lockstep — the host parses that exact line to discover the subprocess's port.
 - **gRPC contract changes** (`plugin.proto`) are made in the `litelens` host repo
   (`packages/core/pb/plugin.proto`), not here — this repo only consumes the generated `pb` package
-  via its `packages/core` dependency (currently the `go.work` shim above).
+  via its `packages/core` dependency.
 
 ## Test locations
 
@@ -190,7 +180,3 @@ contributing, you agree to license your contribution under the same terms.
 ---
 
 Thanks for contributing! Please reach out with questions or feedback.
-
-```sh
-ln -s $PWD/.output  $HOME/Work/tech-projects/personal/litelens-app/litelens/build/storage/plugins
-```

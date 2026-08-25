@@ -11,20 +11,21 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 
-	helmgo "github.com/litelensapp/litelens-plugins/plugins/helm/internal/helm"
 	grpcclient "github.com/litelensapp/litelens-plugins/plugins/helm/internal/api/grpc"
+	helmgo "github.com/litelensapp/litelens-plugins/plugins/helm/internal/helm"
 )
 
 // DynamicClusterProvider is a ClusterProvider whose active context can be changed
 // after construction via SetActiveContext, allowing the app to sync the subprocess's
 // live cluster client on every feature call.
 type DynamicClusterProvider struct {
-	mu             sync.RWMutex
-	cs             *kubernetes.Clientset
-	rc             *rest.Config
-	activeContext  string
-	kubeconfigPath string
-	ctx            context.Context
+	mu               sync.RWMutex
+	cs               *kubernetes.Clientset
+	rc               *rest.Config
+	activeContext    string
+	kubeconfigPath   string
+	activeNamespaces []string
+	ctx              context.Context
 }
 
 // NewDynamicClusterProvider returns a DynamicClusterProvider bound to ctx, with no
@@ -37,6 +38,21 @@ func (p *DynamicClusterProvider) ActiveClients() (*kubernetes.Clientset, *rest.C
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 	return p.cs, p.rc, p.activeContext, []string{p.kubeconfigPath}
+}
+
+func (p *DynamicClusterProvider) ActiveNamespaces() []string {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	return p.activeNamespaces
+}
+
+// SetActiveNamespaces updates the locally-synced namespace filter, pushed from the
+// host over the ActiveNamespacesWatch gRPC stream.
+func (p *DynamicClusterProvider) SetActiveNamespaces(namespaces []string) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.activeNamespaces = namespaces
+	return nil
 }
 
 func (p *DynamicClusterProvider) Ctx() context.Context {
@@ -114,6 +130,52 @@ func WatchClusterContext(hostPort string, provider helmgo.ClusterProvider) {
 
 		streamErr := ProcessWatchStream(stream, dp.SetActiveContext)
 		fmt.Fprintf(os.Stderr, "error: cluster context watch stream: %v\n", streamErr)
+		conn.Close()
+
+		time.Sleep(br.OnStreamError())
+	}
+}
+
+// ProcessActiveNamespacesWatchStream reads events from stream until Recv() errors,
+// invoking syncFn for each event. Mirrors ProcessWatchStream's error handling: a
+// syncFn error is logged but does not stop processing.
+func ProcessActiveNamespacesWatchStream(stream grpcclient.ActiveNamespacesStream, syncFn func(namespaces []string) error) error {
+	for {
+		event, err := stream.Recv()
+		if err != nil {
+			return err
+		}
+		if syncErr := syncFn(event.Namespaces); syncErr != nil {
+			fmt.Fprintf(os.Stderr, "error: sync active namespaces: %v\n", syncErr)
+		}
+	}
+}
+
+// WatchActiveNamespaces connects to the host's gRPC server and subscribes to
+// active-namespaces changes. Uses exponential backoff for reconnection with a max
+// interval of 30s, mirroring WatchClusterContext.
+func WatchActiveNamespaces(hostPort string, provider helmgo.ClusterProvider) {
+	dp, ok := provider.(*DynamicClusterProvider)
+	if !ok {
+		fmt.Fprintf(os.Stderr, "error: provider is not *kube.DynamicClusterProvider\n")
+		return
+	}
+
+	addr := fmt.Sprintf("127.0.0.1:%s", hostPort)
+	br := NewBackoffReconnector()
+
+	for {
+		conn, stream, err := grpcclient.DialAndSubscribeActiveNamespaces(addr)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "error: %v\n", err)
+			time.Sleep(br.OnDialError())
+			continue
+		}
+
+		br.OnConnected()
+
+		streamErr := ProcessActiveNamespacesWatchStream(stream, dp.SetActiveNamespaces)
+		fmt.Fprintf(os.Stderr, "error: active namespaces watch stream: %v\n", streamErr)
 		conn.Close()
 
 		time.Sleep(br.OnStreamError())

@@ -24,6 +24,10 @@ func (s *stubProvider) ActiveClients() (cs *kubernetes.Clientset, rc *rest.Confi
 	return nil, nil, s.activeContext, []string{s.kubeconfigPath}
 }
 
+func (s *stubProvider) ActiveNamespaces() []string {
+	return nil
+}
+
 func (s *stubProvider) Ctx() context.Context {
 	return context.Background()
 }
