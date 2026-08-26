@@ -12,16 +12,6 @@ import (
 	"strconv"
 	"time"
 
-	grpclib "google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
-	"k8s.io/apimachinery/pkg/api/meta"
-	"k8s.io/client-go/discovery"
-	memorycache "k8s.io/client-go/discovery/cached/memory"
-	"k8s.io/client-go/rest"
-	"k8s.io/client-go/restmapper"
-	"k8s.io/client-go/tools/clientcmd"
-
-	"github.com/litelensapp/litelens-plugins/plugins/helm/internal/api/grpc"
 	"github.com/litelensapp/litelens-plugins/plugins/helm/internal/dto"
 )
 
@@ -125,37 +115,6 @@ func (s *HttpServer) Close() error {
 	return s.httpSrv.Close()
 }
 
-// Getter implements genericclioptions.RESTClientGetter using an existing rest.Config.
-type Getter struct {
-	RC        *rest.Config
-	Rules     *clientcmd.ClientConfigLoadingRules
-	Overrides *clientcmd.ConfigOverrides
-}
-
-func (g *Getter) ToRESTConfig() (*rest.Config, error) {
-	return rest.CopyConfig(g.RC), nil
-}
-
-func (g *Getter) ToDiscoveryClient() (discovery.CachedDiscoveryInterface, error) {
-	dc, err := discovery.NewDiscoveryClientForConfig(g.RC)
-	if err != nil {
-		return nil, err
-	}
-	return memorycache.NewMemCacheClient(dc), nil
-}
-
-func (g *Getter) ToRESTMapper() (meta.RESTMapper, error) {
-	dc, err := g.ToDiscoveryClient()
-	if err != nil {
-		return nil, err
-	}
-	return restmapper.NewDeferredDiscoveryRESTMapper(dc), nil
-}
-
-func (g *Getter) ToRawKubeConfigLoader() clientcmd.ClientConfig {
-	return clientcmd.NewNonInteractiveDeferredLoadingClientConfig(g.Rules, g.Overrides)
-}
-
 // Service interface matches the methods we need from helm.Service
 // We define this in the rest package to avoid circular imports
 type Service interface {
@@ -174,17 +133,4 @@ type Service interface {
 	GetHelmReleaseHistory(namespace, releaseName string) ([]dto.HelmReleaseRevisionHistory, error)
 	RollbackHelmRelease(namespace, releaseName string, revision int) error
 	SetActiveContext(contextName, kubeconfigPath string) error
-}
-
-// HostEventEmitter is a type alias for the grpc HostEventEmitter
-type HostEventEmitter = grpc.HostEventEmitter
-
-// NewHostConnection establishes a gRPC connection to the host server.
-func NewHostConnection(addr string) (*grpclib.ClientConn, error) {
-	return grpclib.NewClient(addr, grpclib.WithTransportCredentials(insecure.NewCredentials()))
-}
-
-// NewHostEventEmitter creates a new event emitter using an existing connection.
-func NewHostEventEmitter(conn grpclib.ClientConnInterface) *HostEventEmitter {
-	return grpc.NewHostEventEmitter(conn)
 }

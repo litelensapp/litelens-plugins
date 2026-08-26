@@ -45,10 +45,11 @@ if (!existsSync(builtDist)) {
   process.exit(1);
 }
 
+// Clean the output dir for a fresh build, then recreate it.
+rmSync(outputDir, { recursive: true, force: true });
 mkdirSync(outputDir, { recursive: true });
 
 // dist/
-rmSync(outputDist, { recursive: true, force: true });
 cpSync(builtDist, outputDist, { recursive: true });
 
 // tar.gz archive (same shape as the CI-shipped asset, for checksum parity)

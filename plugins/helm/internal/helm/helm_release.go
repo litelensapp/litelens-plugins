@@ -28,7 +28,7 @@ const HelmRepositoryLabel = "meta.litelens.io/helm-repository-name"
 
 // ListHelmReleases returns releases visible in the host's active namespace filter
 // (ClusterProvider.ActiveNamespaces, synced from the host over the
-// ActiveNamespacesWatch gRPC stream — see kube.WatchActiveNamespaces). An empty
+// Subscribe("namespaces.active") gRPC stream — see kube.WatchActiveNamespaces). An empty
 // slice means cluster-wide (no filter). Helm's action.List only supports a single
 // namespace or all-namespaces natively, so for 2+ specific namespaces this lists
 // all-namespaces and filters the result here.

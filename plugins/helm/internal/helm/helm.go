@@ -20,7 +20,7 @@ type EventEmitter func(ctx context.Context, eventName string, data any)
 type ClusterProvider interface {
 	ActiveClients() (cs *kubernetes.Clientset, rc *rest.Config, activeContext string, kubeconfigPaths []string)
 	// ActiveNamespaces returns the host's current namespace filter, synced from the
-	// host app over the ActiveNamespacesWatch gRPC stream. An empty slice means
+	// host app over the Subscribe("namespaces.active") gRPC stream. An empty slice means
 	// cluster-wide (no filter).
 	ActiveNamespaces() []string
 	Ctx() context.Context

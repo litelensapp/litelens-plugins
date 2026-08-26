@@ -5,20 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"time"
-
-	"github.com/litelensapp/litelens/packages/core/pb"
-	grpclib "google.golang.org/grpc"
 )
 
-type HostEventEmitter struct {
-	client pb.PluginClient
-}
-
-func NewHostEventEmitter(conn grpclib.ClientConnInterface) *HostEventEmitter {
-	return &HostEventEmitter{client: pb.NewPluginClient(conn)}
-}
-
-func (e *HostEventEmitter) Emit(ctx context.Context, eventName string, pluginID string, payload interface{}) {
+// Emit marshals payload and publishes it to the host on topic "plugins.<pluginID>.<eventName>".
+func (c *GrpcClient) Emit(ctx context.Context, eventName string, pluginID string, payload interface{}) {
 	var payloadJSON string
 	if payload != nil {
 		b, err := json.Marshal(payload)
@@ -28,16 +18,13 @@ func (e *HostEventEmitter) Emit(ctx context.Context, eventName string, pluginID 
 		}
 		payloadJSON = string(b)
 	}
+
 	go func() {
 		emitCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		_, err := e.client.EmitEvent(emitCtx, &pb.PluginEventRequest{
-			PluginId:    pluginID,
-			EventName:   eventName,
-			PayloadJson: payloadJSON,
-		})
-		if err != nil {
-			fmt.Printf("emit event %q: %v\n", eventName, err)
+		topic := fmt.Sprintf("plugins.%s.%s", pluginID, eventName)
+		if err := c.Publish(emitCtx, topic, payloadJSON); err != nil {
+			fmt.Printf("%v\n", err)
 		}
 	}()
 }

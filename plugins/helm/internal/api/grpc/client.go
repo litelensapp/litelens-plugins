@@ -1,6 +1,6 @@
 // Package grpc holds the plugin subprocess's outbound gRPC client to the host
 // app — dialing the host's gRPC server and subscribing to cluster context
-// change events.
+// and active namespaces changes via pub/sub.
 package grpc
 
 import (
@@ -10,46 +10,80 @@ import (
 	grpclib "google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
+	"github.com/litelensapp/litelens-plugins/plugins/helm/internal/dto"
 	"github.com/litelensapp/litelens/packages/core/pb"
 )
 
-// ClusterContextStream is the subset of pb.Plugin_ClusterContextWatchClient that
-// callers need, kept narrow so tests can supply a fake stream.
-type ClusterContextStream interface {
-	Recv() (*pb.ClusterContextChangedEvent, error)
+// GrpcClient wraps a connection to the host's gRPC server, offering pub/sub
+// publish and subscribe on top of it.
+type GrpcClient struct {
+	conn   *grpclib.ClientConn
+	client pb.PluginClient
 }
 
-// DialAndSubscribe dials the host's gRPC server and opens the ClusterContextWatch stream.
-func DialAndSubscribe(addr string) (*grpclib.ClientConn, ClusterContextStream, error) {
-	conn, err := grpclib.NewClient(addr, grpclib.WithTransportCredentials(insecure.NewCredentials()))
-	if err != nil {
-		return nil, nil, fmt.Errorf("dial host grpc server: %w", err)
-	}
-	stream, err := pb.NewPluginClient(conn).ClusterContextWatch(context.Background(), &pb.Empty{})
-	if err != nil {
-		conn.Close()
-		return nil, nil, fmt.Errorf("subscribe to cluster context watch: %w", err)
-	}
-	return conn, stream, nil
+// NewGrpcClient wraps an existing connection to the host's gRPC server.
+func NewGrpcClient(conn *grpclib.ClientConn) *GrpcClient {
+	return &GrpcClient{conn: conn, client: pb.NewPluginClient(conn)}
 }
 
-// ActiveNamespacesStream is the subset of pb.Plugin_ActiveNamespacesWatchClient that
-// callers need, kept narrow so tests can supply a fake stream.
-type ActiveNamespacesStream interface {
-	Recv() (*pb.ActiveNamespacesChangedEvent, error)
+// Close closes the underlying connection.
+func (c *GrpcClient) Close() error {
+	if c.conn == nil {
+		return nil
+	}
+	return c.conn.Close()
 }
 
-// DialAndSubscribeActiveNamespaces dials the host's gRPC server and opens the
-// ActiveNamespacesWatch stream.
-func DialAndSubscribeActiveNamespaces(addr string) (*grpclib.ClientConn, ActiveNamespacesStream, error) {
-	conn, err := grpclib.NewClient(addr, grpclib.WithTransportCredentials(insecure.NewCredentials()))
+// Dial dials the host's gRPC server with authentication interceptors,
+// populating the client's connection.
+func (c *GrpcClient) Dial(addr, authToken string) error {
+	unaryInterceptor, streamInterceptor := NewAuthInterceptors(authToken)
+
+	conn, err := grpclib.NewClient(
+		addr,
+		grpclib.WithTransportCredentials(insecure.NewCredentials()),
+		grpclib.WithUnaryInterceptor(unaryInterceptor),
+		grpclib.WithStreamInterceptor(streamInterceptor),
+	)
 	if err != nil {
-		return nil, nil, fmt.Errorf("dial host grpc server: %w", err)
+		return fmt.Errorf("dial host grpc server: %w", err)
 	}
-	stream, err := pb.NewPluginClient(conn).ActiveNamespacesWatch(context.Background(), &pb.Empty{})
+
+	c.conn = conn
+	c.client = pb.NewPluginClient(conn)
+	return nil
+}
+
+// Subscribe opens a pub/sub stream for the given topic.
+func (c *GrpcClient) Subscribe(topic string) (dto.SubscribeStream, error) {
+	stream, err := c.client.Subscribe(context.Background(), &pb.SubscribeRequest{Topic: topic})
 	if err != nil {
-		conn.Close()
-		return nil, nil, fmt.Errorf("subscribe to active namespaces watch: %w", err)
+		return nil, fmt.Errorf("subscribe to topic %q: %w", topic, err)
 	}
-	return conn, stream, nil
+	return stream, nil
+}
+
+// Publish publishes a message to the given topic on the host's pub/sub broker.
+func (c *GrpcClient) Publish(ctx context.Context, topic, payloadJSON string) error {
+	_, err := c.client.Publish(ctx, &pb.PublishRequest{Topic: topic, PayloadJson: payloadJSON})
+	if err != nil {
+		return fmt.Errorf("publish to topic %q: %w", topic, err)
+	}
+	return nil
+}
+
+// DialAndSubscribe dials the host's gRPC server and opens a pub/sub stream
+// for the given topic with authentication.
+func (c *GrpcClient) DialAndSubscribe(addr, topic, authToken string) (dto.SubscribeStream, error) {
+	if err := c.Dial(addr, authToken); err != nil {
+		return nil, err
+	}
+
+	stream, err := c.Subscribe(topic)
+	if err != nil {
+		c.Close()
+		return nil, err
+	}
+
+	return stream, nil
 }

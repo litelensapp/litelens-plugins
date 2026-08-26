@@ -2,6 +2,7 @@ package kube
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -14,6 +15,7 @@ import (
 
 	"google.golang.org/grpc"
 
+	grpcclient "github.com/litelensapp/litelens-plugins/plugins/helm/internal/api/grpc"
 	"github.com/litelensapp/litelens/packages/core/pb"
 )
 
@@ -74,15 +76,15 @@ func TestDynamicClusterProvider_ConcurrentContextAccess(t *testing.T) {
 	}
 }
 
-// fakeClusterContextStream is a scripted clusterContextStream: it yields the given
-// events in order, then returns finalErr forever.
-type fakeClusterContextStream struct {
-	events   []*pb.ClusterContextChangedEvent
+// fakeSubscribeStream is a scripted SubscribeStream: it yields the given
+// PubSubMessage events in order, then returns finalErr forever.
+type fakeSubscribeStream struct {
+	events   []*pb.PubSubMessage
 	finalErr error
 	idx      int
 }
 
-func (f *fakeClusterContextStream) Recv() (*pb.ClusterContextChangedEvent, error) {
+func (f *fakeSubscribeStream) Recv() (*pb.PubSubMessage, error) {
 	if f.idx < len(f.events) {
 		e := f.events[f.idx]
 		f.idx++
@@ -95,16 +97,22 @@ func (f *fakeClusterContextStream) Recv() (*pb.ClusterContextChangedEvent, error
 // every event in order and returns the error that ended the stream.
 func TestProcessWatchStream_StreamErrorHandling(t *testing.T) {
 	streamErr := errors.New("stream closed")
-	stream := &fakeClusterContextStream{
-		events: []*pb.ClusterContextChangedEvent{
-			{ContextName: "ctx-a", KubeconfigPath: "/a"},
-			{ContextName: "ctx-b", KubeconfigPath: "/b"},
+	stream := &fakeSubscribeStream{
+		events: []*pb.PubSubMessage{
+			{
+				Topic:       "cluster.context",
+				PayloadJson: `{"contextName":"ctx-a","kubeconfigPath":"/a"}`,
+			},
+			{
+				Topic:       "cluster.context",
+				PayloadJson: `{"contextName":"ctx-b","kubeconfigPath":"/b"}`,
+			},
 		},
 		finalErr: streamErr,
 	}
 
 	var synced []string
-	err := ProcessWatchStream(stream, func(contextName, kubeconfigPath string) error {
+	err := ProcessWatchStream(grpcclient.NewGrpcClient(nil), stream, func(contextName, kubeconfigPath string) error {
 		synced = append(synced, fmt.Sprintf("%s:%s", contextName, kubeconfigPath))
 		return nil
 	})
@@ -122,16 +130,22 @@ func TestProcessWatchStream_StreamErrorHandling(t *testing.T) {
 // event does not stop later events in the same stream from being processed.
 func TestProcessWatchStream_ConcurrentContextChanges(t *testing.T) {
 	streamErr := errors.New("stream closed")
-	stream := &fakeClusterContextStream{
-		events: []*pb.ClusterContextChangedEvent{
-			{ContextName: "ctx-fail", KubeconfigPath: "/fail"},
-			{ContextName: "ctx-ok", KubeconfigPath: "/ok"},
+	stream := &fakeSubscribeStream{
+		events: []*pb.PubSubMessage{
+			{
+				Topic:       "cluster.context",
+				PayloadJson: `{"contextName":"ctx-fail","kubeconfigPath":"/fail"}`,
+			},
+			{
+				Topic:       "cluster.context",
+				PayloadJson: `{"contextName":"ctx-ok","kubeconfigPath":"/ok"}`,
+			},
 		},
 		finalErr: streamErr,
 	}
 
 	var synced []string
-	err := ProcessWatchStream(stream, func(contextName, kubeconfigPath string) error {
+	err := ProcessWatchStream(grpcclient.NewGrpcClient(nil), stream, func(contextName, kubeconfigPath string) error {
 		synced = append(synced, contextName)
 		if contextName == "ctx-fail" {
 			return errors.New("sync failed")
@@ -166,7 +180,8 @@ func TestWatchClusterContext_ReconnectLoop(t *testing.T) {
 	kubeconfigPath := writeFakeKubeconfig(t)
 
 	provider := NewDynamicClusterProvider(context.Background())
-	go WatchClusterContext(port, provider)
+	testToken := "test-token-64chars-" + "x" // Use a test auth token
+	go WatchClusterContext(port, testToken, provider)
 
 	// WatchClusterContext's first dial attempt hits "connection refused" since nothing
 	// is listening yet; give it a moment to actually run that failing attempt before
@@ -177,8 +192,18 @@ func TestWatchClusterContext_ReconnectLoop(t *testing.T) {
 	if err != nil {
 		t.Fatalf("re-listen on %s: %v", addr, err)
 	}
-	events := make(chan *pb.ClusterContextChangedEvent, 1)
-	events <- &pb.ClusterContextChangedEvent{ContextName: "test-context", KubeconfigPath: kubeconfigPath}
+
+	// Create the PubSubMessage with JSON payload
+	eventPayload, _ := json.Marshal(map[string]string{
+		"contextName":    "test-context",
+		"kubeconfigPath": kubeconfigPath,
+	})
+	events := make(chan *pb.PubSubMessage, 1)
+	events <- &pb.PubSubMessage{
+		Topic:       "cluster.context",
+		Source:      "host",
+		PayloadJson: string(eventPayload),
+	}
 	mock := &streamingMockPluginServer{events: events}
 	srv := grpc.NewServer()
 	pb.RegisterPluginServer(srv, mock)
@@ -201,10 +226,10 @@ func TestWatchClusterContext_ReconnectLoop(t *testing.T) {
 // has one pending cluster-context event to deliver on (re)subscribe.
 type streamingMockPluginServer struct {
 	pb.UnimplementedPluginServer
-	events chan *pb.ClusterContextChangedEvent
+	events chan *pb.PubSubMessage
 }
 
-func (m *streamingMockPluginServer) ClusterContextWatch(req *pb.Empty, stream pb.Plugin_ClusterContextWatchServer) error {
+func (m *streamingMockPluginServer) Subscribe(req *pb.SubscribeRequest, stream pb.Plugin_SubscribeServer) error {
 	for {
 		select {
 		case event, ok := <-m.events:
@@ -220,6 +245,68 @@ func (m *streamingMockPluginServer) ClusterContextWatch(req *pb.Empty, stream pb
 	}
 }
 
+// TestSetActiveContext_LoadsCorrectContext verifies that SetActiveContext loads the
+// rest.Config for the specified context name, not the kubeconfig's current-context.
+// This is a regression test for the bug where clientcmd.BuildConfigFromFlags was used,
+// which ignores the contextName parameter entirely.
+func TestSetActiveContext_LoadsCorrectContext(t *testing.T) {
+	// Create a kubeconfig with two contexts with distinct, identifiable server URLs
+	f, err := os.CreateTemp(t.TempDir(), "kubeconfig-*.yaml")
+	if err != nil {
+		t.Fatalf("create temp kubeconfig: %v", err)
+	}
+	defer f.Close()
+
+	kubeconfig := `apiVersion: v1
+kind: Config
+clusters:
+- name: context-a-cluster
+  cluster:
+    server: https://context-a.example:6443
+- name: context-b-cluster
+  cluster:
+    server: https://context-b.example:6443
+contexts:
+- name: context-a
+  context:
+    cluster: context-a-cluster
+    user: default
+- name: context-b
+  context:
+    cluster: context-b-cluster
+    user: default
+current-context: context-a
+users:
+- name: default
+  user:
+    token: fake-token
+`
+	if _, err := f.WriteString(kubeconfig); err != nil {
+		t.Fatalf("write temp kubeconfig: %v", err)
+	}
+	kubeconfigPath := f.Name()
+
+	// Construct a DynamicClusterProvider
+	provider := NewDynamicClusterProvider(context.Background())
+
+	// Call SetActiveContext with context-b (while kubeconfig's current-context is context-a)
+	err = provider.SetActiveContext("context-b", kubeconfigPath)
+	if err != nil {
+		t.Fatalf("SetActiveContext failed: %v", err)
+	}
+
+	// Verify the resulting rest.Config's Host is context-b's server URL, not context-a's
+	_, cfg, _, _ := provider.ActiveClients()
+	if cfg == nil {
+		t.Fatal("ActiveClients returned nil rest.Config")
+	}
+
+	expectedHost := "https://context-b.example:6443"
+	if cfg.Host != expectedHost {
+		t.Fatalf("expected Host=%q, got %q (bug: likely using kubeconfig's current-context instead of the requested contextName)", expectedHost, cfg.Host)
+	}
+}
+
 // writeFakeKubeconfig writes a syntactically valid kubeconfig to a temp file and
 // returns its path. clientcmd.BuildConfigFromFlags only parses the file and does not
 // dial the cluster, so a fake server URL is sufficient for SetActiveContext to succeed.
@@ -228,17 +315,17 @@ func writeFakeKubeconfig(t *testing.T) string {
 	const kubeconfig = `apiVersion: v1
 kind: Config
 clusters:
-- name: fake
+- name: test-context-cluster
   cluster:
     server: https://127.0.0.1:6443
 contexts:
-- name: fake
+- name: test-context
   context:
-    cluster: fake
-    user: fake
-current-context: fake
+    cluster: test-context-cluster
+    user: test-context
+current-context: test-context
 users:
-- name: fake
+- name: test-context
   user:
     token: fake-token
 `

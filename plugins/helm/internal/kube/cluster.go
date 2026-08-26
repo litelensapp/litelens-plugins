@@ -12,6 +12,7 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 
 	grpcclient "github.com/litelensapp/litelens-plugins/plugins/helm/internal/api/grpc"
+	"github.com/litelensapp/litelens-plugins/plugins/helm/internal/dto"
 	helmgo "github.com/litelensapp/litelens-plugins/plugins/helm/internal/helm"
 )
 
@@ -47,7 +48,7 @@ func (p *DynamicClusterProvider) ActiveNamespaces() []string {
 }
 
 // SetActiveNamespaces updates the locally-synced namespace filter, pushed from the
-// host over the ActiveNamespacesWatch gRPC stream.
+// host over the Subscribe("namespaces.active") gRPC stream.
 func (p *DynamicClusterProvider) SetActiveNamespaces(namespaces []string) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -75,7 +76,12 @@ func (p *DynamicClusterProvider) SetActiveContext(contextName, kubeconfigPath st
 			return fmt.Errorf("in-cluster config: %w", err)
 		}
 	} else {
-		cfg, err = clientcmd.BuildConfigFromFlags("", kubeconfigPath)
+		loader := &clientcmd.ClientConfigLoadingRules{Precedence: []string{kubeconfigPath}}
+		clientConfig := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
+			loader,
+			&clientcmd.ConfigOverrides{CurrentContext: contextName},
+		)
+		cfg, err = clientConfig.ClientConfig()
 		if err != nil {
 			return fmt.Errorf("kubeconfig %q: %w", kubeconfigPath, err)
 		}
@@ -94,9 +100,9 @@ func (p *DynamicClusterProvider) SetActiveContext(contextName, kubeconfigPath st
 // clean server-side stream close, etc.), invoking syncFn for each event. A syncFn
 // error is logged but does not stop processing — the stream is only abandoned when
 // Recv() itself errors. Always returns a non-nil error (the one that ended the stream).
-func ProcessWatchStream(stream grpcclient.ClusterContextStream, syncFn func(contextName, kubeconfigPath string) error) error {
+func ProcessWatchStream(client *grpcclient.GrpcClient, stream dto.SubscribeStream, syncFn func(contextName, kubeconfigPath string) error) error {
 	for {
-		event, err := stream.Recv()
+		event, err := client.RecvClusterContext(stream)
 		if err != nil {
 			return err
 		}
@@ -108,7 +114,7 @@ func ProcessWatchStream(stream grpcclient.ClusterContextStream, syncFn func(cont
 
 // WatchClusterContext connects to the host's gRPC server and subscribes to cluster context changes.
 // Uses exponential backoff for reconnection with a max interval of 30s.
-func WatchClusterContext(hostPort string, provider helmgo.ClusterProvider) {
+func WatchClusterContext(hostPort, authToken string, provider helmgo.ClusterProvider) {
 	dp, ok := provider.(*DynamicClusterProvider)
 	if !ok {
 		fmt.Fprintf(os.Stderr, "error: provider is not *kube.DynamicClusterProvider\n")
@@ -119,7 +125,8 @@ func WatchClusterContext(hostPort string, provider helmgo.ClusterProvider) {
 	br := NewBackoffReconnector()
 
 	for {
-		conn, stream, err := grpcclient.DialAndSubscribe(addr)
+		client := &grpcclient.GrpcClient{}
+		stream, err := client.DialAndSubscribe(addr, "cluster.context", authToken)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "error: %v\n", err)
 			time.Sleep(br.OnDialError())
@@ -128,9 +135,9 @@ func WatchClusterContext(hostPort string, provider helmgo.ClusterProvider) {
 
 		br.OnConnected()
 
-		streamErr := ProcessWatchStream(stream, dp.SetActiveContext)
+		streamErr := ProcessWatchStream(client, stream, dp.SetActiveContext)
 		fmt.Fprintf(os.Stderr, "error: cluster context watch stream: %v\n", streamErr)
-		conn.Close()
+		client.Close()
 
 		time.Sleep(br.OnStreamError())
 	}
@@ -139,9 +146,9 @@ func WatchClusterContext(hostPort string, provider helmgo.ClusterProvider) {
 // ProcessActiveNamespacesWatchStream reads events from stream until Recv() errors,
 // invoking syncFn for each event. Mirrors ProcessWatchStream's error handling: a
 // syncFn error is logged but does not stop processing.
-func ProcessActiveNamespacesWatchStream(stream grpcclient.ActiveNamespacesStream, syncFn func(namespaces []string) error) error {
+func ProcessActiveNamespacesWatchStream(client *grpcclient.GrpcClient, stream dto.SubscribeStream, syncFn func(namespaces []string) error) error {
 	for {
-		event, err := stream.Recv()
+		event, err := client.RecvActiveNamespaces(stream)
 		if err != nil {
 			return err
 		}
@@ -154,7 +161,7 @@ func ProcessActiveNamespacesWatchStream(stream grpcclient.ActiveNamespacesStream
 // WatchActiveNamespaces connects to the host's gRPC server and subscribes to
 // active-namespaces changes. Uses exponential backoff for reconnection with a max
 // interval of 30s, mirroring WatchClusterContext.
-func WatchActiveNamespaces(hostPort string, provider helmgo.ClusterProvider) {
+func WatchActiveNamespaces(hostPort, authToken string, provider helmgo.ClusterProvider) {
 	dp, ok := provider.(*DynamicClusterProvider)
 	if !ok {
 		fmt.Fprintf(os.Stderr, "error: provider is not *kube.DynamicClusterProvider\n")
@@ -165,7 +172,8 @@ func WatchActiveNamespaces(hostPort string, provider helmgo.ClusterProvider) {
 	br := NewBackoffReconnector()
 
 	for {
-		conn, stream, err := grpcclient.DialAndSubscribeActiveNamespaces(addr)
+		client := &grpcclient.GrpcClient{}
+		stream, err := client.DialAndSubscribe(addr, "namespaces.active", authToken)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "error: %v\n", err)
 			time.Sleep(br.OnDialError())
@@ -174,9 +182,9 @@ func WatchActiveNamespaces(hostPort string, provider helmgo.ClusterProvider) {
 
 		br.OnConnected()
 
-		streamErr := ProcessActiveNamespacesWatchStream(stream, dp.SetActiveNamespaces)
+		streamErr := ProcessActiveNamespacesWatchStream(client, stream, dp.SetActiveNamespaces)
 		fmt.Fprintf(os.Stderr, "error: active namespaces watch stream: %v\n", streamErr)
-		conn.Close()
+		client.Close()
 
 		time.Sleep(br.OnStreamError())
 	}
