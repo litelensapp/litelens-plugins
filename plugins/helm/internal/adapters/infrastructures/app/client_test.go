@@ -9,6 +9,7 @@ import (
 	grpclib "google.golang.org/grpc"
 
 	"github.com/litelensapp/litelens/packages/core/pb"
+	"github.com/litelensapp/litelens/packages/core/util"
 )
 
 // MockPluginServer implements a minimal mock for testing.
@@ -38,7 +39,7 @@ func TestDialAndSubscribe_RetriesUntilHostListening(t *testing.T) {
 
 	authToken := "test-token-64chars-" + "x" // Use a test token
 	failClient := &GrpcClient{}
-	if _, err := failClient.DialAndSubscribe(addr, "cluster.context", authToken); err == nil {
+	if _, err := failClient.DialAndSubscribe(addr, string(util.EventTopicClusterContext), authToken); err == nil {
 		t.Fatalf("expected DialAndSubscribe to fail while nothing is listening")
 	}
 
@@ -53,7 +54,7 @@ func TestDialAndSubscribe_RetriesUntilHostListening(t *testing.T) {
 	defer srv.Stop()
 
 	client := &GrpcClient{}
-	stream, err := client.DialAndSubscribe(addr, "cluster.context", authToken)
+	stream, err := client.DialAndSubscribe(addr, string(util.EventTopicClusterContext), authToken)
 	if err != nil {
 		t.Fatalf("expected DialAndSubscribe to succeed once host is listening, got %v", err)
 	}

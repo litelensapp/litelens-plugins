@@ -14,6 +14,7 @@ import (
 	grpcclient "github.com/litelensapp/litelens-plugins/plugins/helm/internal/adapters/infrastructures/app"
 	"github.com/litelensapp/litelens-plugins/plugins/helm/internal/applications/dto"
 	"github.com/litelensapp/litelens-plugins/plugins/helm/internal/applications/port"
+	"github.com/litelensapp/litelens/packages/core/util"
 )
 
 // DynamicClusterProvider is a ClusterProvider whose active context can be changed
@@ -121,7 +122,7 @@ func (p *DynamicClusterProvider) WatchClusterContext(hostPort, authToken string)
 	br := NewBackoffReconnector()
 
 	for {
-		stream, err := p.client.DialAndSubscribe(addr, "cluster.context", authToken)
+		stream, err := p.client.DialAndSubscribe(addr, string(util.EventTopicClusterContext), authToken)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "error: %v\n", err)
 			time.Sleep(br.OnDialError())
@@ -161,7 +162,7 @@ func (p *DynamicClusterProvider) WatchActiveNamespaces(hostPort, authToken strin
 	br := NewBackoffReconnector()
 
 	for {
-		stream, err := p.client.DialAndSubscribe(addr, "namespaces.active", authToken)
+		stream, err := p.client.DialAndSubscribe(addr, string(util.EventTopicNamespacesActive), authToken)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "error: %v\n", err)
 			time.Sleep(br.OnDialError())

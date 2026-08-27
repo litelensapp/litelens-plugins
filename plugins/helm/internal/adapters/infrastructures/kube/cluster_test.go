@@ -17,6 +17,7 @@ import (
 
 	grpcclient "github.com/litelensapp/litelens-plugins/plugins/helm/internal/adapters/infrastructures/app"
 	"github.com/litelensapp/litelens/packages/core/pb"
+	"github.com/litelensapp/litelens/packages/core/util"
 )
 
 // TestDynamicClusterProvider_Idempotency documents that setting the same context twice is safe.
@@ -100,11 +101,11 @@ func TestProcessWatchStream_StreamErrorHandling(t *testing.T) {
 	stream := &fakeSubscribeStream{
 		events: []*pb.PubSubMessage{
 			{
-				Topic:       "cluster.context",
+				Topic:       string(util.EventTopicClusterContext),
 				PayloadJson: `{"contextName":"ctx-a","kubeconfigPath":"/a"}`,
 			},
 			{
-				Topic:       "cluster.context",
+				Topic:       string(util.EventTopicClusterContext),
 				PayloadJson: `{"contextName":"ctx-b","kubeconfigPath":"/b"}`,
 			},
 		},
@@ -134,11 +135,11 @@ func TestProcessWatchStream_ConcurrentContextChanges(t *testing.T) {
 	stream := &fakeSubscribeStream{
 		events: []*pb.PubSubMessage{
 			{
-				Topic:       "cluster.context",
+				Topic:       string(util.EventTopicClusterContext),
 				PayloadJson: `{"contextName":"ctx-fail","kubeconfigPath":"/fail"}`,
 			},
 			{
-				Topic:       "cluster.context",
+				Topic:       string(util.EventTopicClusterContext),
 				PayloadJson: `{"contextName":"ctx-ok","kubeconfigPath":"/ok"}`,
 			},
 		},
@@ -202,7 +203,7 @@ func TestWatchClusterContext_ReconnectLoop(t *testing.T) {
 	})
 	events := make(chan *pb.PubSubMessage, 1)
 	events <- &pb.PubSubMessage{
-		Topic:       "cluster.context",
+		Topic:       string(util.EventTopicClusterContext),
 		Source:      "host",
 		PayloadJson: string(eventPayload),
 	}

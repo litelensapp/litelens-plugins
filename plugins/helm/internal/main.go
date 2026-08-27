@@ -15,7 +15,7 @@ import (
 	"github.com/litelensapp/litelens-plugins/plugins/helm/internal/applications/helm"
 	"github.com/litelensapp/litelens-plugins/plugins/helm/internal/applications/lock"
 	"github.com/litelensapp/litelens-plugins/plugins/helm/internal/config"
-	"github.com/litelensapp/litelens/packages/core/pluginsdk"
+	"github.com/litelensapp/litelens/packages/core/util"
 )
 
 var (
@@ -31,7 +31,7 @@ func main() {
 	flag.Parse()
 
 	// Read authorization token from stdin before any gRPC operations
-	token, err := pluginsdk.ReadAuthTokenFromStdin()
+	token, err := util.ReadAuthTokenFromStdin()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: read auth token from stdin: %v\n", err)
 		os.Exit(1)
