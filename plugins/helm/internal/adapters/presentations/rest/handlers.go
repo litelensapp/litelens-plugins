@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/litelensapp/litelens-plugins/plugins/helm/internal/applications/port"
 )
 
@@ -18,22 +19,22 @@ func NewHandler(svc port.HelmService) *Handler {
 	return &Handler{svc: svc}
 }
 
-// RegisterRoutes wires all business + control endpoints onto mux.
-func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
-	mux.HandleFunc("POST /api/helm/listCharts", h.listCharts)
-	mux.HandleFunc("POST /api/helm/listRepositories", h.listRepositories)
-	mux.HandleFunc("POST /api/helm/listReleases", h.listReleases)
-	mux.HandleFunc("POST /api/helm/listChartVersions", h.listChartVersions)
-	mux.HandleFunc("POST /api/helm/getChartDetail", h.getChartDetail)
-	mux.HandleFunc("POST /api/helm/getArtifactHubReadme", h.getArtifactHubReadme)
-	mux.HandleFunc("POST /api/helm/installChart", h.installChart)
-	mux.HandleFunc("POST /api/helm/upgradeRelease", h.upgradeRelease)
-	mux.HandleFunc("POST /api/helm/deleteRelease", h.deleteRelease)
-	mux.HandleFunc("POST /api/helm/deleteReleaseWithCleanup", h.deleteReleaseWithCleanup)
-	mux.HandleFunc("POST /api/helm/getReleaseByName", h.getReleaseByName)
-	mux.HandleFunc("POST /api/helm/getChartValues", h.getChartValues)
-	mux.HandleFunc("POST /api/helm/getReleaseHistory", h.getReleaseHistory)
-	mux.HandleFunc("POST /api/helm/rollbackRelease", h.rollbackRelease)
+// RegisterRoutes wires all business + control endpoints onto router.
+func (h *Handler) RegisterRoutes(router chi.Router) {
+	router.Post("/api/helm/listCharts", h.listCharts)
+	router.Post("/api/helm/listRepositories", h.listRepositories)
+	router.Post("/api/helm/listReleases", h.listReleases)
+	router.Post("/api/helm/listChartVersions", h.listChartVersions)
+	router.Post("/api/helm/getChartDetail", h.getChartDetail)
+	router.Post("/api/helm/getArtifactHubReadme", h.getArtifactHubReadme)
+	router.Post("/api/helm/installChart", h.installChart)
+	router.Post("/api/helm/upgradeRelease", h.upgradeRelease)
+	router.Post("/api/helm/deleteRelease", h.deleteRelease)
+	router.Post("/api/helm/deleteReleaseWithCleanup", h.deleteReleaseWithCleanup)
+	router.Post("/api/helm/getReleaseByName", h.getReleaseByName)
+	router.Post("/api/helm/getChartValues", h.getChartValues)
+	router.Post("/api/helm/getReleaseHistory", h.getReleaseHistory)
+	router.Post("/api/helm/rollbackRelease", h.rollbackRelease)
 }
 
 func decodeBody(r *http.Request, v any) (bool, error) {

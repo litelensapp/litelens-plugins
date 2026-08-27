@@ -3,6 +3,7 @@ module github.com/litelensapp/litelens-plugins/plugins/helm
 go 1.26.5
 
 require (
+	github.com/go-chi/chi/v5 v5.3.2
 	github.com/litelensapp/litelens/packages/core v1.7.5
 	google.golang.org/grpc v1.83.2
 	helm.sh/helm/v3 v3.21.4

@@ -12,7 +12,6 @@ coverage.out
 
 .claude/*
 !.claude/memory/
-!.claude/plan/
 !.claude/settings.json
 
 repomix-output.xml
