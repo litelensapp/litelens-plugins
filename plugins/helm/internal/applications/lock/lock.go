@@ -1,9 +1,10 @@
-package helm
+package lock
 
 import (
 	"sync"
 
-	"github.com/litelensapp/litelens-plugins/plugins/helm/internal/dto"
+	"github.com/litelensapp/litelens-plugins/plugins/helm/internal/applications/dto"
+	"github.com/litelensapp/litelens-plugins/plugins/helm/internal/applications/helm"
 )
 
 // LockedService wraps Service with a mutex guarding the active cluster client so a
@@ -14,11 +15,11 @@ import (
 // New business calls arriving during the swap simply block briefly on RLock().
 type LockedService struct {
 	mu  sync.RWMutex
-	svc *Service
+	svc *helm.Service
 }
 
-// NewLockedService wraps an existing Service.
-func NewLockedService(svc *Service) *LockedService {
+// NewService wraps an existing Service.
+func NewService(svc *helm.Service) *LockedService {
 	return &LockedService{svc: svc}
 }
 

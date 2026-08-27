@@ -9,6 +9,7 @@ import (
 	grpclib "google.golang.org/grpc"
 
 	"github.com/litelensapp/litelens/packages/core/pb"
+	"github.com/litelensapp/litelens/packages/core/util"
 )
 
 // MockPluginServer implements a minimal mock for testing.
@@ -17,7 +18,7 @@ type MockPluginServer struct {
 	watchCallCount int32
 }
 
-func (m *MockPluginServer) ClusterContextWatch(req *pb.Empty, stream pb.Plugin_ClusterContextWatchServer) error {
+func (m *MockPluginServer) Subscribe(req *pb.SubscribeRequest, stream pb.Plugin_SubscribeServer) error {
 	atomic.AddInt32(&m.watchCallCount, 1)
 	// Just wait for context to be cancelled
 	<-stream.Context().Done()
@@ -27,7 +28,7 @@ func (m *MockPluginServer) ClusterContextWatch(req *pb.Empty, stream pb.Plugin_C
 // TestDialAndSubscribe_RetriesUntilHostListening verifies that WatchClusterContext's
 // dial step, run in a loop as WatchClusterContext itself does, keeps failing with a
 // connection error while nothing is listening, then succeeds once a real gRPC server
-// implementing ClusterContextWatch starts on that address.
+// implementing Subscribe starts on that address.
 func TestDialAndSubscribe_RetriesUntilHostListening(t *testing.T) {
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -36,7 +37,9 @@ func TestDialAndSubscribe_RetriesUntilHostListening(t *testing.T) {
 	addr := ln.Addr().String()
 	ln.Close() // release the port; nothing is listening on it yet
 
-	if _, _, err := DialAndSubscribe(addr); err == nil {
+	authToken := "test-token-64chars-" + "x" // Use a test token
+	failClient := &GrpcClient{}
+	if _, err := failClient.DialAndSubscribe(addr, string(util.EventTopicClusterContext), authToken); err == nil {
 		t.Fatalf("expected DialAndSubscribe to fail while nothing is listening")
 	}
 
@@ -50,11 +53,12 @@ func TestDialAndSubscribe_RetriesUntilHostListening(t *testing.T) {
 	go srv.Serve(ln2)
 	defer srv.Stop()
 
-	conn, stream, err := DialAndSubscribe(addr)
+	client := &GrpcClient{}
+	stream, err := client.DialAndSubscribe(addr, string(util.EventTopicClusterContext), authToken)
 	if err != nil {
 		t.Fatalf("expected DialAndSubscribe to succeed once host is listening, got %v", err)
 	}
-	defer conn.Close()
+	defer client.Close()
 	if stream == nil {
 		t.Fatal("expected non-nil stream on success")
 	}
@@ -68,5 +72,5 @@ func TestDialAndSubscribe_RetriesUntilHostListening(t *testing.T) {
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
-	t.Fatalf("expected host to observe exactly 1 ClusterContextWatch call, got %d", mock.watchCallCount)
+	t.Fatalf("expected host to observe exactly 1 Subscribe call, got %d", mock.watchCallCount)
 }

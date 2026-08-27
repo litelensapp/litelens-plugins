@@ -1,6 +1,5 @@
-// Package rest provides HTTP handlers plus a genericclioptions.RESTClientGetter
-// implementation backed by an existing rest.Config, so Helm actions can be wired to
-// the active cluster context without re-reading kubeconfig from disk.
+// Package rest provides the plugin's HTTP business API — localhost-only handlers
+// wired to the port.HelmService interface.
 package rest
 
 import (
@@ -12,17 +11,7 @@ import (
 	"strconv"
 	"time"
 
-	grpclib "google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
-	"k8s.io/apimachinery/pkg/api/meta"
-	"k8s.io/client-go/discovery"
-	memorycache "k8s.io/client-go/discovery/cached/memory"
-	"k8s.io/client-go/rest"
-	"k8s.io/client-go/restmapper"
-	"k8s.io/client-go/tools/clientcmd"
-
-	"github.com/litelensapp/litelens-plugins/plugins/helm/internal/api/grpc"
-	"github.com/litelensapp/litelens-plugins/plugins/helm/internal/dto"
+	"github.com/litelensapp/litelens-plugins/plugins/helm/internal/applications/port"
 )
 
 // HttpServer wraps the plugin's HTTP server — localhost-only. The Wails webview
@@ -42,7 +31,7 @@ type HttpServer struct {
 
 // NewHttpServer binds a listener on listen and wires svc's routes onto it, but does not
 // start serving — call Serve to block and accept connections.
-func NewHttpServer(listen, version string, svc Service) (*HttpServer, error) {
+func NewHttpServer(listen, version string, svc port.HelmService) (*HttpServer, error) {
 	ln, err := net.Listen("tcp", listen)
 	if err != nil {
 		return nil, fmt.Errorf("listen for HTTP: %w", err)
@@ -123,68 +112,4 @@ func (s *HttpServer) Serve() error {
 // Close shuts down the server, releasing the listener.
 func (s *HttpServer) Close() error {
 	return s.httpSrv.Close()
-}
-
-// Getter implements genericclioptions.RESTClientGetter using an existing rest.Config.
-type Getter struct {
-	RC        *rest.Config
-	Rules     *clientcmd.ClientConfigLoadingRules
-	Overrides *clientcmd.ConfigOverrides
-}
-
-func (g *Getter) ToRESTConfig() (*rest.Config, error) {
-	return rest.CopyConfig(g.RC), nil
-}
-
-func (g *Getter) ToDiscoveryClient() (discovery.CachedDiscoveryInterface, error) {
-	dc, err := discovery.NewDiscoveryClientForConfig(g.RC)
-	if err != nil {
-		return nil, err
-	}
-	return memorycache.NewMemCacheClient(dc), nil
-}
-
-func (g *Getter) ToRESTMapper() (meta.RESTMapper, error) {
-	dc, err := g.ToDiscoveryClient()
-	if err != nil {
-		return nil, err
-	}
-	return restmapper.NewDeferredDiscoveryRESTMapper(dc), nil
-}
-
-func (g *Getter) ToRawKubeConfigLoader() clientcmd.ClientConfig {
-	return clientcmd.NewNonInteractiveDeferredLoadingClientConfig(g.Rules, g.Overrides)
-}
-
-// Service interface matches the methods we need from helm.Service
-// We define this in the rest package to avoid circular imports
-type Service interface {
-	ListHelmCharts() ([]dto.HelmChart, error)
-	ListHelmRepositories() ([]dto.HelmRepository, error)
-	ListHelmReleases() ([]dto.HelmRelease, error)
-	ListHelmChartVersions(repository, chartName string) ([]string, error)
-	GetHelmChartDetail(repository, chartName, version string) (dto.HelmChartDetail, error)
-	GetArtifactHubReadme(repository, chartName, version string) (string, error)
-	InstallHelmChart(namespace, releaseName, repository, chartName, version, valuesYAML string) error
-	UpgradeHelmRelease(namespace, releaseName, repository, chartName, version, valuesYAML string) error
-	DeleteHelmRelease(namespace, releaseName string) error
-	DeleteHelmReleaseWithCleanup(namespace, releaseName string) error
-	GetHelmReleaseByName(namespace, releaseName string) (*dto.HelmReleaseDetail, error)
-	GetHelmChartValues(repository, chartName, version string) (string, error)
-	GetHelmReleaseHistory(namespace, releaseName string) ([]dto.HelmReleaseRevisionHistory, error)
-	RollbackHelmRelease(namespace, releaseName string, revision int) error
-	SetActiveContext(contextName, kubeconfigPath string) error
-}
-
-// HostEventEmitter is a type alias for the grpc HostEventEmitter
-type HostEventEmitter = grpc.HostEventEmitter
-
-// NewHostConnection establishes a gRPC connection to the host server.
-func NewHostConnection(addr string) (*grpclib.ClientConn, error) {
-	return grpclib.NewClient(addr, grpclib.WithTransportCredentials(insecure.NewCredentials()))
-}
-
-// NewHostEventEmitter creates a new event emitter using an existing connection.
-func NewHostEventEmitter(conn grpclib.ClientConnInterface) *HostEventEmitter {
-	return grpc.NewHostEventEmitter(conn)
 }

@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/litelensapp/litelens-plugins/plugins/helm/internal/dto"
+	"github.com/litelensapp/litelens-plugins/plugins/helm/internal/applications/dto"
 	helmchart "helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/chart/loader"
 	"helm.sh/helm/v3/pkg/helmpath"

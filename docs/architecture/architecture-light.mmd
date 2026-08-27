@@ -8,21 +8,21 @@ flowchart TB
         PW -- "4 in-process calls via @litelens/core<br/>(view/nav/tray/event registration at load,<br/>useExposeProperties() for resourceLinks/unifiedTray/activeContext)" --> HW
     end
 
-    subgraph PLUGIN["Helm Plugin Subprocess (Go)"]
+    subgraph PLUGIN["Helm Plugin Subprocess (Go, hexagonal)"]
         direction TB
-        PH["HTTP Server<br/>127.0.0.1:&lt;port&gt;"]
-        PG["gRPC Client<br/>(dials the host)"]
-        PS["Service<br/>(Helm SDK + k8s client)"]
+        PH["HTTP Server (adapters/presentations/rest)<br/>127.0.0.1:&lt;port&gt;"]
+        PG["gRPC pub/sub Client (adapters/infrastructures/app)<br/>2 dedicated conns: cluster-context watch,<br/>active-namespaces watch + event emit"]
+        PS["LockedService (applications/lock)<br/>-&gt; Service (applications/helm)<br/>Helm SDK + k8s client"]
         PH --> PS
         PG --> PS
     end
 
     HW -- "Wails-bound method calls<br/>(cluster switch, plugin install/lifecycle, ...)" --> HP
     HP -. "Wails event bus<br/>(cluster/plugin state changes)" .-> HW
-    HP -- "1 spawn + stdout handshake<br/>{httpPort, pid}" --> PLUGIN
+    HP -- "1 spawn, auth token over stdin,<br/>stdout handshake {type:READY, httpPort, pid, version}" --> PLUGIN
     PW -- "2 fetch() business calls<br/>POST /api/helm/&lt;method&gt;" --> PH
-    PG -- "3 dial + watch stream<br/>(pull cluster-context switches)" --> HP
-    PG -. "3 emit async events<br/>(helm:install:complete, ...)" .-> HP
+    PG -- "3 dial + Subscribe (bearer auth)<br/>topics: cluster.context, namespaces.active" --> HP
+    PG -. "3 Publish emit<br/>topic: plugins.helm.&lt;eventName&gt;" .-> HP
     HP -. "Wails event bus<br/>relays events + plugin:backendRestarted" .-> PW
 
     linkStyle 5,9,10 stroke:#ca8a04,stroke-width:2px,color:#ca8a04
