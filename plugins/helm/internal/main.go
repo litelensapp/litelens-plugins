@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"time"
 
 	grpc "github.com/litelensapp/litelens-plugins/plugins/helm/internal/adapters/infrastructures/app"
 	"github.com/litelensapp/litelens-plugins/plugins/helm/internal/adapters/infrastructures/kube"
@@ -54,7 +55,7 @@ func main() {
 	}
 
 	// Build cluster provider from kubeconfig
-	clusterProvider, err := kube.BuildClusterProvider(*kubeconfig, hostClient)
+	clusterProvider, err := kube.BuildClusterProvider(*kubeconfig)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: build cluster provider: %v\n", err)
 		os.Exit(1)
@@ -79,6 +80,12 @@ func main() {
 		}
 		go dp.WatchClusterContext(hostPort, authToken)
 		go dp.WatchActiveNamespaces(hostPort, authToken)
+
+		// Block until the host's replayed cluster-context/active-namespaces messages
+		// land, so the first business call isn't served against BuildClusterProvider's
+		// kubeconfig-derived guess (wrong cluster, unfiltered namespaces) — a result
+		// the frontend would then cache indefinitely.
+		dp.WaitForInitialSync(5 * time.Second)
 	}
 
 	// Serve HTTP server (blocks for the process lifetime)
