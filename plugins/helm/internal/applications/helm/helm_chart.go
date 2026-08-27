@@ -36,10 +36,9 @@ func (s *Service) ListHelmCharts() ([]dto.HelmChart, error) {
 			continue
 		}
 		repoAlias := strings.TrimSuffix(filepath.Base(entry.Name()), "-index.yaml")
-		indexPath := filepath.Join(cacheDir, entry.Name())
-		index, err := repo.LoadIndexFile(indexPath)
+		index, _, err := s.getOrCreateIndex(repoAlias)
 		if err != nil {
-			log.Printf("helm: load index %s: %v", indexPath, err)
+			log.Printf("helm: load index %s: %v", repoAlias, err)
 			continue
 		}
 		index.SortEntries()
@@ -67,11 +66,9 @@ func (s *Service) ListHelmCharts() ([]dto.HelmChart, error) {
 
 // ListHelmChartVersions returns all available versions of a chart from a repository.
 func (s *Service) ListHelmChartVersions(repository, chartName string) ([]string, error) {
-	cacheDir := helmpath.CachePath("repository")
-	indexPath := filepath.Join(cacheDir, repository+"-index.yaml")
-	index, err := repo.LoadIndexFile(indexPath)
+	index, _, err := s.getOrCreateIndex(repository)
 	if err != nil {
-		return []string{}, fmt.Errorf("helm: load index %s: %w", indexPath, err)
+		return []string{}, err
 	}
 	versions, ok := index.Entries[chartName]
 	if !ok || len(versions) == 0 {
@@ -89,11 +86,9 @@ func (s *Service) ListHelmChartVersions(repository, chartName string) ([]string,
 // GetHelmChartDetail returns detailed metadata for a single chart from a local repo cache.
 // If version is empty, returns the latest version entry.
 func (s *Service) GetHelmChartDetail(repository, chartName, version string) (dto.HelmChartDetail, error) {
-	cacheDir := helmpath.CachePath("repository")
-	indexPath := filepath.Join(cacheDir, repository+"-index.yaml")
-	index, err := repo.LoadIndexFile(indexPath)
+	index, versionMap, err := s.getOrCreateIndex(repository)
 	if err != nil {
-		return dto.HelmChartDetail{}, fmt.Errorf("helm: load index %s: %w", indexPath, err)
+		return dto.HelmChartDetail{}, err
 	}
 	versions, ok := index.Entries[chartName]
 	if !ok || len(versions) == 0 {
@@ -102,15 +97,9 @@ func (s *Service) GetHelmChartDetail(repository, chartName, version string) (dto
 
 	var chartVersion = versions[0]
 	if version != "" {
-		found := false
-		for _, v := range versions {
-			if v != nil && v.Version == version {
-				chartVersion = v
-				found = true
-				break
-			}
-		}
-		if !found {
+		if cv, ok := versionMap[version]; ok {
+			chartVersion = cv
+		} else {
 			return dto.HelmChartDetail{}, fmt.Errorf("helm: version %q of chart %q not found", version, chartName)
 		}
 	}
@@ -237,11 +226,9 @@ func (s *Service) GetArtifactHubReadme(repository, chartName, version string) (s
 // GetHelmChartValues returns the values.yaml content for a chart version.
 // If version is empty, returns the latest version.
 func (s *Service) GetHelmChartValues(repository, chartName, version string) (string, error) {
-	cacheDir := helmpath.CachePath("repository")
-	indexPath := filepath.Join(cacheDir, repository+"-index.yaml")
-	index, err := repo.LoadIndexFile(indexPath)
+	index, versionMap, err := s.getOrCreateIndex(repository)
 	if err != nil {
-		return "", fmt.Errorf("helm: load index %s: %w", indexPath, err)
+		return "", err
 	}
 	versions, ok := index.Entries[chartName]
 	if !ok || len(versions) == 0 {
@@ -250,15 +237,9 @@ func (s *Service) GetHelmChartValues(repository, chartName, version string) (str
 
 	var chartVersion = versions[0]
 	if version != "" {
-		found := false
-		for _, v := range versions {
-			if v != nil && v.Version == version {
-				chartVersion = v
-				found = true
-				break
-			}
-		}
-		if !found {
+		if cv, ok := versionMap[version]; ok {
+			chartVersion = cv
+		} else {
 			return "", fmt.Errorf("helm: version %q of chart %q not found", version, chartName)
 		}
 	}

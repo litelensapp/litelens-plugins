@@ -3,22 +3,16 @@ package helm
 import (
 	"context"
 	"fmt"
-	"path/filepath"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/litelensapp/litelens-plugins/plugins/helm/internal/applications/dto"
-	"github.com/litelensapp/litelens/packages/core/kube"
 	"helm.sh/helm/v3/pkg/action"
-	"helm.sh/helm/v3/pkg/helmpath"
-	"helm.sh/helm/v3/pkg/repo"
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
-	"k8s.io/client-go/tools/clientcmd"
 	"sigs.k8s.io/yaml"
 )
 
@@ -32,7 +26,7 @@ const HelmRepositoryLabel = "meta.litelens.io/helm-repository-name"
 // namespace or all-namespaces natively, so for 2+ specific namespaces this lists
 // all-namespaces and filters the result here.
 func (s *Service) ListHelmReleases() ([]dto.HelmRelease, error) {
-	cs, rc, activeCtx, kubeconfigPaths := s.provider.ActiveClients()
+	cs, rc, activeCtx, _ := s.provider.ActiveClients()
 	if cs == nil {
 		return []dto.HelmRelease{}, nil
 	}
@@ -46,10 +40,9 @@ func (s *Service) ListHelmReleases() ([]dto.HelmRelease, error) {
 		namespace = namespaces[0]
 	}
 
-	getter := s.getterFactory.NewRESTClientGetter(rc, kube.LoadingRules(kubeconfigPaths), &clientcmd.ConfigOverrides{CurrentContext: activeCtx})
-	cfg := new(action.Configuration)
-	if err := cfg.Init(getter, namespace, "secrets", func(string, ...any) {}); err != nil {
-		return []dto.HelmRelease{}, fmt.Errorf("helm: init configuration: %w", err)
+	cfg, err := s.getOrCreateConfig(namespace, activeCtx)
+	if err != nil {
+		return []dto.HelmRelease{}, err
 	}
 
 	list := action.NewList(cfg)
@@ -102,7 +95,7 @@ func (s *Service) ListHelmReleases() ([]dto.HelmRelease, error) {
 
 // InstallHelmChart installs a helm chart into the specified namespace.
 func (s *Service) InstallHelmChart(namespace, releaseName, repository, chartName, version, valuesYAML string) error {
-	cs, rc, activeCtx, kubeconfigPaths := s.provider.ActiveClients()
+	cs, rc, activeCtx, _ := s.provider.ActiveClients()
 	if cs == nil {
 		return fmt.Errorf("helm: no active kubernetes context")
 	}
@@ -110,12 +103,10 @@ func (s *Service) InstallHelmChart(namespace, releaseName, repository, chartName
 		return fmt.Errorf("helm: no REST config for active context")
 	}
 
-	// Load the chart index to get the download URL
-	cacheDir := helmpath.CachePath("repository")
-	indexPath := filepath.Join(cacheDir, repository+"-index.yaml")
-	index, err := repo.LoadIndexFile(indexPath)
+	// Load the chart index to get the download URL (with caching)
+	index, versionMap, err := s.getOrCreateIndex(repository)
 	if err != nil {
-		return fmt.Errorf("helm: load index: %w", err)
+		return err
 	}
 
 	versions, ok := index.Entries[chartName]
@@ -125,15 +116,9 @@ func (s *Service) InstallHelmChart(namespace, releaseName, repository, chartName
 
 	var chartVersion = versions[0]
 	if version != "" {
-		found := false
-		for _, v := range versions {
-			if v != nil && v.Version == version {
-				chartVersion = v
-				found = true
-				break
-			}
-		}
-		if !found {
+		if cv, ok := versionMap[version]; ok {
+			chartVersion = cv
+		} else {
 			return fmt.Errorf("helm: version %q of chart %q not found", version, chartName)
 		}
 	}
@@ -153,11 +138,10 @@ func (s *Service) InstallHelmChart(namespace, releaseName, repository, chartName
 		return err
 	}
 
-	// Set up helm configuration wired to the active cluster context.
-	getter := s.getterFactory.NewRESTClientGetter(rc, kube.LoadingRules(kubeconfigPaths), &clientcmd.ConfigOverrides{CurrentContext: activeCtx})
-	cfg := new(action.Configuration)
-	if err := cfg.Init(getter, namespace, "secrets", func(string, ...any) {}); err != nil {
-		return fmt.Errorf("helm: init configuration: %w", err)
+	// Set up helm configuration wired to the active cluster context (cached).
+	cfg, err := s.getOrCreateConfig(namespace, activeCtx)
+	if err != nil {
+		return err
 	}
 
 	// Create install action (synchronous setup only)
@@ -206,7 +190,7 @@ func (s *Service) InstallHelmChart(namespace, releaseName, repository, chartName
 
 // UpgradeHelmRelease upgrades an existing helm release to a different chart version.
 func (s *Service) UpgradeHelmRelease(namespace, releaseName, repository, chartName, version, valuesYAML string) error {
-	cs, rc, activeCtx, kubeconfigPaths := s.provider.ActiveClients()
+	cs, rc, activeCtx, _ := s.provider.ActiveClients()
 	if cs == nil {
 		return fmt.Errorf("helm: no active kubernetes context")
 	}
@@ -214,12 +198,10 @@ func (s *Service) UpgradeHelmRelease(namespace, releaseName, repository, chartNa
 		return fmt.Errorf("helm: no REST config for active context")
 	}
 
-	// Load the chart index to get the download URL for the target version
-	cacheDir := helmpath.CachePath("repository")
-	indexPath := filepath.Join(cacheDir, repository+"-index.yaml")
-	index, err := repo.LoadIndexFile(indexPath)
+	// Load the chart index to get the download URL for the target version (with caching)
+	index, versionMap, err := s.getOrCreateIndex(repository)
 	if err != nil {
-		return fmt.Errorf("helm: load index: %w", err)
+		return err
 	}
 
 	versions, ok := index.Entries[chartName]
@@ -229,15 +211,9 @@ func (s *Service) UpgradeHelmRelease(namespace, releaseName, repository, chartNa
 
 	var chartVersion = versions[0]
 	if version != "" {
-		found := false
-		for _, v := range versions {
-			if v != nil && v.Version == version {
-				chartVersion = v
-				found = true
-				break
-			}
-		}
-		if !found {
+		if cv, ok := versionMap[version]; ok {
+			chartVersion = cv
+		} else {
 			return fmt.Errorf("helm: version %q of chart %q not found", version, chartName)
 		}
 	}
@@ -257,11 +233,10 @@ func (s *Service) UpgradeHelmRelease(namespace, releaseName, repository, chartNa
 		return err
 	}
 
-	// Set up helm configuration wired to the active cluster context.
-	getter := s.getterFactory.NewRESTClientGetter(rc, kube.LoadingRules(kubeconfigPaths), &clientcmd.ConfigOverrides{CurrentContext: activeCtx})
-	cfg := new(action.Configuration)
-	if err := cfg.Init(getter, namespace, "secrets", func(string, ...any) {}); err != nil {
-		return fmt.Errorf("helm: init configuration: %w", err)
+	// Set up helm configuration wired to the active cluster context (cached).
+	cfg, err := s.getOrCreateConfig(namespace, activeCtx)
+	if err != nil {
+		return err
 	}
 
 	// Parse custom values YAML if provided, otherwise use empty map
@@ -303,7 +278,7 @@ func (s *Service) UpgradeHelmRelease(namespace, releaseName, repository, chartNa
 
 // DeleteHelmRelease uninstalls a helm release from the specified namespace.
 func (s *Service) DeleteHelmRelease(namespace, releaseName string) error {
-	cs, rc, activeCtx, kubeconfigPaths := s.provider.ActiveClients()
+	cs, rc, activeCtx, _ := s.provider.ActiveClients()
 	if cs == nil {
 		return fmt.Errorf("helm: no active kubernetes context")
 	}
@@ -311,18 +286,16 @@ func (s *Service) DeleteHelmRelease(namespace, releaseName string) error {
 		return fmt.Errorf("helm: no REST config for active context")
 	}
 
-	// Set up helm configuration wired to the active cluster context.
-	getter := s.getterFactory.NewRESTClientGetter(rc, kube.LoadingRules(kubeconfigPaths), &clientcmd.ConfigOverrides{CurrentContext: activeCtx})
-	cfg := new(action.Configuration)
-	if err := cfg.Init(getter, namespace, "secrets", func(string, ...any) {}); err != nil {
-		return fmt.Errorf("helm: init configuration: %w", err)
+	// Set up helm configuration wired to the active cluster context (cached).
+	cfg, err := s.getOrCreateConfig(namespace, activeCtx)
+	if err != nil {
+		return err
 	}
 
 	// Create and run uninstall action
 	uninstall := action.NewUninstall(cfg)
 
-	_, err := uninstall.Run(releaseName)
-	if err != nil {
+	if _, err := uninstall.Run(releaseName); err != nil {
 		return fmt.Errorf("helm: uninstall release: %w", err)
 	}
 
@@ -335,7 +308,7 @@ func (s *Service) DeleteHelmRelease(namespace, releaseName string) error {
 // Emits helm:cleanup:complete, helm:cleanup:partial, or helm:cleanup:error
 // when the background sweep finishes.
 func (s *Service) DeleteHelmReleaseWithCleanup(namespace, releaseName string) error {
-	cs, rc, activeCtx, kubeconfigPaths := s.provider.ActiveClients()
+	cs, rc, activeCtx, _ := s.provider.ActiveClients()
 	if cs == nil {
 		return fmt.Errorf("helm: no active kubernetes context")
 	}
@@ -343,10 +316,9 @@ func (s *Service) DeleteHelmReleaseWithCleanup(namespace, releaseName string) er
 		return fmt.Errorf("helm: no REST config for active context")
 	}
 
-	getter := s.getterFactory.NewRESTClientGetter(rc, kube.LoadingRules(kubeconfigPaths), &clientcmd.ConfigOverrides{CurrentContext: activeCtx})
-	cfg := new(action.Configuration)
-	if err := cfg.Init(getter, namespace, "secrets", func(string, ...any) {}); err != nil {
-		return fmt.Errorf("helm: init configuration: %w", err)
+	cfg, err := s.getOrCreateConfig(namespace, activeCtx)
+	if err != nil {
+		return err
 	}
 
 	// Capture the full manifest before uninstalling so we know exactly which
@@ -392,33 +364,10 @@ func (s *Service) DeleteHelmReleaseWithCleanup(namespace, releaseName string) er
 
 		// Build Kind → GVR + namespaced flag from discovery so we can look up
 		// resources by Kind (the only type info present in a manifest).
-		// ServerPreferredResources can return partial results alongside an error;
-		// record any error but still process whatever groups were returned.
-		type gvrMeta struct {
-			gvr        schema.GroupVersionResource
-			namespaced bool
-		}
-		kindMap := map[string]gvrMeta{}
-		serverResources, discoveryErr := cs.Discovery().ServerPreferredResources()
-		if discoveryErr != nil {
-			cleanupErrs = append(cleanupErrs, fmt.Sprintf("resource discovery: %s", discoveryErr.Error()))
-		}
-		for _, rl := range serverResources {
-			gv, err := schema.ParseGroupVersion(rl.GroupVersion)
-			if err != nil {
-				continue
-			}
-			for _, r := range rl.APIResources {
-				if strings.Contains(r.Name, "/") {
-					continue
-				}
-				if helmHasVerb(r.Verbs, "delete") {
-					kindMap[r.Kind] = gvrMeta{
-						gvr:        schema.GroupVersionResource{Group: gv.Group, Version: gv.Version, Resource: r.Name},
-						namespaced: r.Namespaced,
-					}
-				}
-			}
+		// Use cached discovery results if available, otherwise call ServerPreferredResources.
+		kindMap := s.getOrCreateDiscoveryMap(activeCtx, cs)
+		if len(kindMap) == 0 {
+			cleanupErrs = append(cleanupErrs, "resource discovery: no resources found")
 		}
 
 		// Step 1: Build resource identity set.
@@ -633,7 +582,7 @@ func (s *Service) DeleteHelmReleaseWithCleanup(namespace, releaseName string) er
 
 // GetHelmReleaseByName returns detailed metadata for a single helm release.
 func (s *Service) GetHelmReleaseByName(namespace, releaseName string) (*dto.HelmReleaseDetail, error) {
-	cs, rc, activeCtx, kubeconfigPaths := s.provider.ActiveClients()
+	cs, rc, activeCtx, _ := s.provider.ActiveClients()
 	if cs == nil {
 		return nil, fmt.Errorf("helm: no active kubernetes context")
 	}
@@ -641,11 +590,10 @@ func (s *Service) GetHelmReleaseByName(namespace, releaseName string) (*dto.Helm
 		return nil, fmt.Errorf("helm: no REST config for active context")
 	}
 
-	// Set up helm configuration wired to the active cluster context.
-	getter := s.getterFactory.NewRESTClientGetter(rc, kube.LoadingRules(kubeconfigPaths), &clientcmd.ConfigOverrides{CurrentContext: activeCtx})
-	cfg := new(action.Configuration)
-	if err := cfg.Init(getter, namespace, "secrets", func(string, ...any) {}); err != nil {
-		return nil, fmt.Errorf("helm: init configuration: %w", err)
+	// Set up helm configuration wired to the active cluster context (cached).
+	cfg, err := s.getOrCreateConfig(namespace, activeCtx)
+	if err != nil {
+		return nil, err
 	}
 
 	// Create and run get action
@@ -692,7 +640,7 @@ func (s *Service) GetHelmReleaseByName(namespace, releaseName string) (*dto.Helm
 
 // GetHelmReleaseHistory returns revision history for a release, sorted newest-first.
 func (s *Service) GetHelmReleaseHistory(namespace, releaseName string) ([]dto.HelmReleaseRevisionHistory, error) {
-	cs, rc, activeCtx, kubeconfigPaths := s.provider.ActiveClients()
+	cs, rc, activeCtx, _ := s.provider.ActiveClients()
 	if cs == nil {
 		return []dto.HelmReleaseRevisionHistory{}, fmt.Errorf("helm: no active kubernetes context")
 	}
@@ -700,11 +648,10 @@ func (s *Service) GetHelmReleaseHistory(namespace, releaseName string) ([]dto.He
 		return []dto.HelmReleaseRevisionHistory{}, fmt.Errorf("helm: no REST config for active context")
 	}
 
-	// Set up helm configuration wired to the active cluster context.
-	getter := s.getterFactory.NewRESTClientGetter(rc, kube.LoadingRules(kubeconfigPaths), &clientcmd.ConfigOverrides{CurrentContext: activeCtx})
-	cfg := new(action.Configuration)
-	if err := cfg.Init(getter, namespace, "secrets", func(string, ...any) {}); err != nil {
-		return []dto.HelmReleaseRevisionHistory{}, fmt.Errorf("helm: init configuration: %w", err)
+	// Set up helm configuration wired to the active cluster context (cached).
+	cfg, err := s.getOrCreateConfig(namespace, activeCtx)
+	if err != nil {
+		return []dto.HelmReleaseRevisionHistory{}, err
 	}
 
 	// Get release history
@@ -757,7 +704,7 @@ func (s *Service) GetHelmReleaseHistory(namespace, releaseName string) ([]dto.He
 
 // RollbackHelmRelease rolls back a release to a previous revision, synchronously.
 func (s *Service) RollbackHelmRelease(namespace, releaseName string, revision int) error {
-	cs, rc, activeCtx, kubeconfigPaths := s.provider.ActiveClients()
+	cs, rc, activeCtx, _ := s.provider.ActiveClients()
 	if cs == nil {
 		return fmt.Errorf("helm: no active kubernetes context")
 	}
@@ -765,19 +712,17 @@ func (s *Service) RollbackHelmRelease(namespace, releaseName string, revision in
 		return fmt.Errorf("helm: no REST config for active context")
 	}
 
-	// Set up helm configuration wired to the active cluster context.
-	getter := s.getterFactory.NewRESTClientGetter(rc, kube.LoadingRules(kubeconfigPaths), &clientcmd.ConfigOverrides{CurrentContext: activeCtx})
-	cfg := new(action.Configuration)
-	if err := cfg.Init(getter, namespace, "secrets", func(string, ...any) {}); err != nil {
-		return fmt.Errorf("helm: init configuration: %w", err)
+	// Set up helm configuration wired to the active cluster context (cached).
+	cfg, err := s.getOrCreateConfig(namespace, activeCtx)
+	if err != nil {
+		return err
 	}
 
 	// Create and run rollback action
 	rollback := action.NewRollback(cfg)
 	rollback.Version = revision
 
-	err := rollback.Run(releaseName)
-	if err != nil {
+	if err := rollback.Run(releaseName); err != nil {
 		return fmt.Errorf("helm: rollback: %w", err)
 	}
 
