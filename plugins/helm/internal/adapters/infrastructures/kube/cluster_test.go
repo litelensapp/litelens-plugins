@@ -15,7 +15,7 @@ import (
 
 	"google.golang.org/grpc"
 
-	grpcclient "github.com/litelensapp/litelens-plugins/plugins/helm/internal/api/grpc"
+	grpcclient "github.com/litelensapp/litelens-plugins/plugins/helm/internal/adapters/infrastructures/app"
 	"github.com/litelensapp/litelens/packages/core/pb"
 )
 
@@ -27,7 +27,7 @@ func TestDynamicClusterProvider_Idempotency(t *testing.T) {
 	// - This is safe even if called concurrently with ActiveClients() reads
 	// - The early-return check is guarded by mu.RLock()
 
-	provider := NewDynamicClusterProvider(context.Background())
+	provider := NewDynamicClusterProvider(context.Background(), nil)
 
 	// Both calls should succeed (or both fail on kubeconfig errors, which is fine)
 	err1 := provider.SetActiveContext("test-context", "")
@@ -43,7 +43,7 @@ func TestDynamicClusterProvider_Idempotency(t *testing.T) {
 // TestDynamicClusterProvider_ConcurrentContextAccess tests concurrent SetActiveContext
 // and ActiveClients access.
 func TestDynamicClusterProvider_ConcurrentContextAccess(t *testing.T) {
-	provider := NewDynamicClusterProvider(context.Background())
+	provider := NewDynamicClusterProvider(context.Background(), nil)
 
 	var wg sync.WaitGroup
 	var contextChangeCount atomic.Int32
@@ -111,8 +111,9 @@ func TestProcessWatchStream_StreamErrorHandling(t *testing.T) {
 		finalErr: streamErr,
 	}
 
+	provider := NewDynamicClusterProvider(context.Background(), nil)
 	var synced []string
-	err := ProcessWatchStream(grpcclient.NewGrpcClient(nil), stream, func(contextName, kubeconfigPath string) error {
+	err := provider.ProcessWatchStream(grpcclient.NewGrpcClient(nil), stream, func(contextName, kubeconfigPath string) error {
 		synced = append(synced, fmt.Sprintf("%s:%s", contextName, kubeconfigPath))
 		return nil
 	})
@@ -144,8 +145,9 @@ func TestProcessWatchStream_ConcurrentContextChanges(t *testing.T) {
 		finalErr: streamErr,
 	}
 
+	provider := NewDynamicClusterProvider(context.Background(), nil)
 	var synced []string
-	err := ProcessWatchStream(grpcclient.NewGrpcClient(nil), stream, func(contextName, kubeconfigPath string) error {
+	err := provider.ProcessWatchStream(grpcclient.NewGrpcClient(nil), stream, func(contextName, kubeconfigPath string) error {
 		synced = append(synced, contextName)
 		if contextName == "ctx-fail" {
 			return errors.New("sync failed")
@@ -179,9 +181,9 @@ func TestWatchClusterContext_ReconnectLoop(t *testing.T) {
 
 	kubeconfigPath := writeFakeKubeconfig(t)
 
-	provider := NewDynamicClusterProvider(context.Background())
+	provider := NewDynamicClusterProvider(context.Background(), &grpcclient.GrpcClient{})
 	testToken := "test-token-64chars-" + "x" // Use a test auth token
-	go WatchClusterContext(port, testToken, provider)
+	go provider.WatchClusterContext(port, testToken)
 
 	// WatchClusterContext's first dial attempt hits "connection refused" since nothing
 	// is listening yet; give it a moment to actually run that failing attempt before
@@ -287,7 +289,7 @@ users:
 	kubeconfigPath := f.Name()
 
 	// Construct a DynamicClusterProvider
-	provider := NewDynamicClusterProvider(context.Background())
+	provider := NewDynamicClusterProvider(context.Background(), nil)
 
 	// Call SetActiveContext with context-b (while kubeconfig's current-context is context-a)
 	err = provider.SetActiveContext("context-b", kubeconfigPath)

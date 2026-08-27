@@ -1,6 +1,5 @@
-// Package rest provides HTTP handlers plus a genericclioptions.RESTClientGetter
-// implementation backed by an existing rest.Config, so Helm actions can be wired to
-// the active cluster context without re-reading kubeconfig from disk.
+// Package rest provides the plugin's HTTP business API — localhost-only handlers
+// wired to the port.HelmService interface.
 package rest
 
 import (
@@ -12,7 +11,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/litelensapp/litelens-plugins/plugins/helm/internal/dto"
+	"github.com/litelensapp/litelens-plugins/plugins/helm/internal/applications/port"
 )
 
 // HttpServer wraps the plugin's HTTP server — localhost-only. The Wails webview
@@ -32,7 +31,7 @@ type HttpServer struct {
 
 // NewHttpServer binds a listener on listen and wires svc's routes onto it, but does not
 // start serving — call Serve to block and accept connections.
-func NewHttpServer(listen, version string, svc Service) (*HttpServer, error) {
+func NewHttpServer(listen, version string, svc port.HelmService) (*HttpServer, error) {
 	ln, err := net.Listen("tcp", listen)
 	if err != nil {
 		return nil, fmt.Errorf("listen for HTTP: %w", err)
@@ -113,24 +112,4 @@ func (s *HttpServer) Serve() error {
 // Close shuts down the server, releasing the listener.
 func (s *HttpServer) Close() error {
 	return s.httpSrv.Close()
-}
-
-// Service interface matches the methods we need from helm.Service
-// We define this in the rest package to avoid circular imports
-type Service interface {
-	ListHelmCharts() ([]dto.HelmChart, error)
-	ListHelmRepositories() ([]dto.HelmRepository, error)
-	ListHelmReleases() ([]dto.HelmRelease, error)
-	ListHelmChartVersions(repository, chartName string) ([]string, error)
-	GetHelmChartDetail(repository, chartName, version string) (dto.HelmChartDetail, error)
-	GetArtifactHubReadme(repository, chartName, version string) (string, error)
-	InstallHelmChart(namespace, releaseName, repository, chartName, version, valuesYAML string) error
-	UpgradeHelmRelease(namespace, releaseName, repository, chartName, version, valuesYAML string) error
-	DeleteHelmRelease(namespace, releaseName string) error
-	DeleteHelmReleaseWithCleanup(namespace, releaseName string) error
-	GetHelmReleaseByName(namespace, releaseName string) (*dto.HelmReleaseDetail, error)
-	GetHelmChartValues(repository, chartName, version string) (string, error)
-	GetHelmReleaseHistory(namespace, releaseName string) ([]dto.HelmReleaseRevisionHistory, error)
-	RollbackHelmRelease(namespace, releaseName string, revision int) error
-	SetActiveContext(contextName, kubeconfigPath string) error
 }

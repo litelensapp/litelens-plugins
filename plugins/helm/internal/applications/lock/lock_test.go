@@ -1,4 +1,4 @@
-package helm
+package lock
 
 import (
 	"context"
@@ -6,6 +6,7 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/litelensapp/litelens-plugins/plugins/helm/internal/applications/helm"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 )
@@ -50,8 +51,8 @@ func (s *stubProvider) getSetContextCallCount() int {
 // TestLockedService_ReadLock tests that business methods take RLock and delegate to Service.
 func TestLockedService_ReadLock(t *testing.T) {
 	provider := &stubProvider{activeContext: "test-ctx"}
-	baseSvc := NewService(provider, func(ctx context.Context, eventName string, data any) {})
-	locked := NewLockedService(baseSvc)
+	baseSvc := helm.NewService(provider, func(ctx context.Context, eventName string, data any) {}, nil)
+	locked := NewService(baseSvc)
 
 	result, err := locked.ListHelmRepositories()
 	if err != nil {
@@ -64,8 +65,8 @@ func TestLockedService_ReadLock(t *testing.T) {
 // TestLockedService_WriteLock tests that SetActiveContext takes Lock and delegates to Service.
 func TestLockedService_WriteLock(t *testing.T) {
 	provider := &stubProvider{activeContext: "old-ctx"}
-	baseSvc := NewService(provider, func(ctx context.Context, eventName string, data any) {})
-	locked := NewLockedService(baseSvc)
+	baseSvc := helm.NewService(provider, func(ctx context.Context, eventName string, data any) {}, nil)
+	locked := NewService(baseSvc)
 
 	err := locked.SetActiveContext("test-ctx", "/path")
 	if err != nil {
@@ -80,8 +81,8 @@ func TestLockedService_WriteLock(t *testing.T) {
 // We don't invoke Service methods to avoid disk I/O, just verify delegation.
 func TestLockedService_ConcurrentReads(t *testing.T) {
 	provider := &stubProvider{activeContext: "test-ctx"}
-	baseSvc := NewService(provider, func(ctx context.Context, eventName string, data any) {})
-	locked := NewLockedService(baseSvc)
+	baseSvc := helm.NewService(provider, func(ctx context.Context, eventName string, data any) {}, nil)
+	locked := NewService(baseSvc)
 
 	// Just verify SetActiveContext can be called without panic
 	err := locked.SetActiveContext("ctx-0", "/path")
@@ -94,8 +95,8 @@ func TestLockedService_ConcurrentReads(t *testing.T) {
 // Just verify SetActiveContext can be called and delegated.
 func TestLockedService_WriteBlockingOrder(t *testing.T) {
 	provider := &stubProvider{activeContext: "old-ctx"}
-	baseSvc := NewService(provider, func(ctx context.Context, eventName string, data any) {})
-	locked := NewLockedService(baseSvc)
+	baseSvc := helm.NewService(provider, func(ctx context.Context, eventName string, data any) {}, nil)
+	locked := NewService(baseSvc)
 
 	// Attempt a write
 	locked.SetActiveContext("new-ctx", "/new/path")
@@ -109,8 +110,8 @@ func TestLockedService_WriteBlockingOrder(t *testing.T) {
 // TestLockedService_MultipleWritesConcurrent tests that concurrent writes serialize (each takes Lock).
 func TestLockedService_MultipleWritesConcurrent(t *testing.T) {
 	provider := &stubProvider{activeContext: "initial"}
-	baseSvc := NewService(provider, func(ctx context.Context, eventName string, data any) {})
-	locked := NewLockedService(baseSvc)
+	baseSvc := helm.NewService(provider, func(ctx context.Context, eventName string, data any) {}, nil)
+	locked := NewService(baseSvc)
 
 	const numWrites = 3
 	var wg sync.WaitGroup
@@ -142,8 +143,8 @@ func TestLockedService_MultipleWritesConcurrent(t *testing.T) {
 // TestLockedService_Mutex tests that the mutex is in place and accessible.
 func TestLockedService_Mutex(t *testing.T) {
 	provider := &stubProvider{activeContext: "ctx-0"}
-	baseSvc := NewService(provider, func(ctx context.Context, eventName string, data any) {})
-	locked := NewLockedService(baseSvc)
+	baseSvc := helm.NewService(provider, func(ctx context.Context, eventName string, data any) {}, nil)
+	locked := NewService(baseSvc)
 
 	// Verify LockedService has mu field (mutex)
 	// This is verified by compilation - if mu is missing, the RLock/Lock calls below fail
@@ -174,8 +175,8 @@ func TestLockedService_Mutex(t *testing.T) {
 // TestLockedService_SetActiveContextDelegates tests SetActiveContext delegates to provider.
 func TestLockedService_SetActiveContextDelegates(t *testing.T) {
 	provider := &stubProvider{activeContext: "old-ctx"}
-	baseSvc := NewService(provider, func(ctx context.Context, eventName string, data any) {})
-	locked := NewLockedService(baseSvc)
+	baseSvc := helm.NewService(provider, func(ctx context.Context, eventName string, data any) {}, nil)
+	locked := NewService(baseSvc)
 
 	err := locked.SetActiveContext("new-ctx", "/new/path")
 	if err != nil {

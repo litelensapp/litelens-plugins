@@ -5,14 +5,16 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+
+	"github.com/litelensapp/litelens-plugins/plugins/helm/internal/applications/port"
 )
 
 // Handler exposes helm.Service business methods over plain HTTP POST endpoints.
 type Handler struct {
-	svc Service
+	svc port.HelmService
 }
 
-func NewHandler(svc Service) *Handler {
+func NewHandler(svc port.HelmService) *Handler {
 	return &Handler{svc: svc}
 }
 

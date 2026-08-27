@@ -1,7 +1,11 @@
-package rest
+// Package restconfig implements genericclioptions.RESTClientGetter using an existing
+// rest.Config, so Helm SDK actions honor the currently active cluster context without
+// re-reading kubeconfig from disk.
+package restconfig
 
 import (
 	"k8s.io/apimachinery/pkg/api/meta"
+	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/client-go/discovery"
 	memorycache "k8s.io/client-go/discovery/cached/memory"
 	"k8s.io/client-go/rest"
@@ -38,4 +42,11 @@ func (g *Getter) ToRESTMapper() (meta.RESTMapper, error) {
 
 func (g *Getter) ToRawKubeConfigLoader() clientcmd.ClientConfig {
 	return clientcmd.NewNonInteractiveDeferredLoadingClientConfig(g.Rules, g.Overrides)
+}
+
+// Factory implements port.RESTClientGetterFactory.
+type Factory struct{}
+
+func (Factory) NewRESTClientGetter(rc *rest.Config, rules *clientcmd.ClientConfigLoadingRules, overrides *clientcmd.ConfigOverrides) genericclioptions.RESTClientGetter {
+	return &Getter{RC: rc, Rules: rules, Overrides: overrides}
 }

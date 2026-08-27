@@ -11,9 +11,9 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 
-	grpcclient "github.com/litelensapp/litelens-plugins/plugins/helm/internal/api/grpc"
-	"github.com/litelensapp/litelens-plugins/plugins/helm/internal/dto"
-	helmgo "github.com/litelensapp/litelens-plugins/plugins/helm/internal/helm"
+	grpcclient "github.com/litelensapp/litelens-plugins/plugins/helm/internal/adapters/infrastructures/app"
+	"github.com/litelensapp/litelens-plugins/plugins/helm/internal/applications/dto"
+	"github.com/litelensapp/litelens-plugins/plugins/helm/internal/applications/port"
 )
 
 // DynamicClusterProvider is a ClusterProvider whose active context can be changed
@@ -27,12 +27,14 @@ type DynamicClusterProvider struct {
 	kubeconfigPath   string
 	activeNamespaces []string
 	ctx              context.Context
+	client           *grpcclient.GrpcClient
 }
 
 // NewDynamicClusterProvider returns a DynamicClusterProvider bound to ctx, with no
-// active cluster client yet — call SetActiveContext to seed it.
-func NewDynamicClusterProvider(ctx context.Context) *DynamicClusterProvider {
-	return &DynamicClusterProvider{ctx: ctx}
+// active cluster client yet — call SetActiveContext to seed it. client is the gRPC
+// client used by WatchClusterContext/WatchActiveNamespaces to dial the host.
+func NewDynamicClusterProvider(ctx context.Context, client *grpcclient.GrpcClient) *DynamicClusterProvider {
+	return &DynamicClusterProvider{ctx: ctx, client: client}
 }
 
 func (p *DynamicClusterProvider) ActiveClients() (*kubernetes.Clientset, *rest.Config, string, []string) {
@@ -100,7 +102,7 @@ func (p *DynamicClusterProvider) SetActiveContext(contextName, kubeconfigPath st
 // clean server-side stream close, etc.), invoking syncFn for each event. A syncFn
 // error is logged but does not stop processing — the stream is only abandoned when
 // Recv() itself errors. Always returns a non-nil error (the one that ended the stream).
-func ProcessWatchStream(client *grpcclient.GrpcClient, stream dto.SubscribeStream, syncFn func(contextName, kubeconfigPath string) error) error {
+func (p *DynamicClusterProvider) ProcessWatchStream(client *grpcclient.GrpcClient, stream dto.SubscribeStream, syncFn func(contextName, kubeconfigPath string) error) error {
 	for {
 		event, err := client.RecvClusterContext(stream)
 		if err != nil {
@@ -114,19 +116,12 @@ func ProcessWatchStream(client *grpcclient.GrpcClient, stream dto.SubscribeStrea
 
 // WatchClusterContext connects to the host's gRPC server and subscribes to cluster context changes.
 // Uses exponential backoff for reconnection with a max interval of 30s.
-func WatchClusterContext(hostPort, authToken string, provider helmgo.ClusterProvider) {
-	dp, ok := provider.(*DynamicClusterProvider)
-	if !ok {
-		fmt.Fprintf(os.Stderr, "error: provider is not *kube.DynamicClusterProvider\n")
-		return
-	}
-
+func (p *DynamicClusterProvider) WatchClusterContext(hostPort, authToken string) {
 	addr := fmt.Sprintf("127.0.0.1:%s", hostPort)
 	br := NewBackoffReconnector()
 
 	for {
-		client := &grpcclient.GrpcClient{}
-		stream, err := client.DialAndSubscribe(addr, "cluster.context", authToken)
+		stream, err := p.client.DialAndSubscribe(addr, "cluster.context", authToken)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "error: %v\n", err)
 			time.Sleep(br.OnDialError())
@@ -135,9 +130,9 @@ func WatchClusterContext(hostPort, authToken string, provider helmgo.ClusterProv
 
 		br.OnConnected()
 
-		streamErr := ProcessWatchStream(client, stream, dp.SetActiveContext)
+		streamErr := p.ProcessWatchStream(p.client, stream, p.SetActiveContext)
 		fmt.Fprintf(os.Stderr, "error: cluster context watch stream: %v\n", streamErr)
-		client.Close()
+		p.client.Close()
 
 		time.Sleep(br.OnStreamError())
 	}
@@ -146,7 +141,7 @@ func WatchClusterContext(hostPort, authToken string, provider helmgo.ClusterProv
 // ProcessActiveNamespacesWatchStream reads events from stream until Recv() errors,
 // invoking syncFn for each event. Mirrors ProcessWatchStream's error handling: a
 // syncFn error is logged but does not stop processing.
-func ProcessActiveNamespacesWatchStream(client *grpcclient.GrpcClient, stream dto.SubscribeStream, syncFn func(namespaces []string) error) error {
+func (p *DynamicClusterProvider) ProcessActiveNamespacesWatchStream(client *grpcclient.GrpcClient, stream dto.SubscribeStream, syncFn func(namespaces []string) error) error {
 	for {
 		event, err := client.RecvActiveNamespaces(stream)
 		if err != nil {
@@ -161,19 +156,12 @@ func ProcessActiveNamespacesWatchStream(client *grpcclient.GrpcClient, stream dt
 // WatchActiveNamespaces connects to the host's gRPC server and subscribes to
 // active-namespaces changes. Uses exponential backoff for reconnection with a max
 // interval of 30s, mirroring WatchClusterContext.
-func WatchActiveNamespaces(hostPort, authToken string, provider helmgo.ClusterProvider) {
-	dp, ok := provider.(*DynamicClusterProvider)
-	if !ok {
-		fmt.Fprintf(os.Stderr, "error: provider is not *kube.DynamicClusterProvider\n")
-		return
-	}
-
+func (p *DynamicClusterProvider) WatchActiveNamespaces(hostPort, authToken string) {
 	addr := fmt.Sprintf("127.0.0.1:%s", hostPort)
 	br := NewBackoffReconnector()
 
 	for {
-		client := &grpcclient.GrpcClient{}
-		stream, err := client.DialAndSubscribe(addr, "namespaces.active", authToken)
+		stream, err := p.client.DialAndSubscribe(addr, "namespaces.active", authToken)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "error: %v\n", err)
 			time.Sleep(br.OnDialError())
@@ -182,9 +170,9 @@ func WatchActiveNamespaces(hostPort, authToken string, provider helmgo.ClusterPr
 
 		br.OnConnected()
 
-		streamErr := ProcessActiveNamespacesWatchStream(client, stream, dp.SetActiveNamespaces)
+		streamErr := p.ProcessActiveNamespacesWatchStream(p.client, stream, p.SetActiveNamespaces)
 		fmt.Fprintf(os.Stderr, "error: active namespaces watch stream: %v\n", streamErr)
-		client.Close()
+		p.client.Close()
 
 		time.Sleep(br.OnStreamError())
 	}
@@ -193,8 +181,10 @@ func WatchActiveNamespaces(hostPort, authToken string, provider helmgo.ClusterPr
 // BuildClusterProvider creates a ClusterProvider from a kubeconfig path.
 // If kubeconfig is empty, attempts in-cluster config.
 // If kubeconfig is explicitly provided but fails to load, returns an error immediately.
-func BuildClusterProvider(kubeconfig string) (helmgo.ClusterProvider, error) {
-	dp := NewDynamicClusterProvider(context.Background())
+// client is the gRPC client the returned provider uses for WatchClusterContext and
+// WatchActiveNamespaces.
+func BuildClusterProvider(kubeconfig string, client *grpcclient.GrpcClient) (port.ClusterProvider, error) {
+	dp := NewDynamicClusterProvider(context.Background(), client)
 
 	// Resolve the initial context name from kubeconfig
 	var contextName string

@@ -6,17 +6,20 @@ package grpc
 import (
 	"context"
 	"fmt"
+	"sync"
 
 	grpclib "google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
-	"github.com/litelensapp/litelens-plugins/plugins/helm/internal/dto"
+	"github.com/litelensapp/litelens-plugins/plugins/helm/internal/applications/dto"
 	"github.com/litelensapp/litelens/packages/core/pb"
 )
 
 // GrpcClient wraps a connection to the host's gRPC server, offering pub/sub
-// publish and subscribe on top of it.
+// publish and subscribe on top of it. Safe for concurrent use — a single
+// instance may be shared across event emission and multiple watch loops.
 type GrpcClient struct {
+	mu     sync.RWMutex
 	conn   *grpclib.ClientConn
 	client pb.PluginClient
 }
@@ -28,6 +31,8 @@ func NewGrpcClient(conn *grpclib.ClientConn) *GrpcClient {
 
 // Close closes the underlying connection.
 func (c *GrpcClient) Close() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	if c.conn == nil {
 		return nil
 	}
@@ -49,6 +54,11 @@ func (c *GrpcClient) Dial(addr, authToken string) error {
 		return fmt.Errorf("dial host grpc server: %w", err)
 	}
 
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.conn != nil {
+		c.conn.Close()
+	}
 	c.conn = conn
 	c.client = pb.NewPluginClient(conn)
 	return nil
@@ -56,7 +66,11 @@ func (c *GrpcClient) Dial(addr, authToken string) error {
 
 // Subscribe opens a pub/sub stream for the given topic.
 func (c *GrpcClient) Subscribe(topic string) (dto.SubscribeStream, error) {
-	stream, err := c.client.Subscribe(context.Background(), &pb.SubscribeRequest{Topic: topic})
+	c.mu.RLock()
+	client := c.client
+	c.mu.RUnlock()
+
+	stream, err := client.Subscribe(context.Background(), &pb.SubscribeRequest{Topic: topic})
 	if err != nil {
 		return nil, fmt.Errorf("subscribe to topic %q: %w", topic, err)
 	}
@@ -65,7 +79,11 @@ func (c *GrpcClient) Subscribe(topic string) (dto.SubscribeStream, error) {
 
 // Publish publishes a message to the given topic on the host's pub/sub broker.
 func (c *GrpcClient) Publish(ctx context.Context, topic, payloadJSON string) error {
-	_, err := c.client.Publish(ctx, &pb.PublishRequest{Topic: topic, PayloadJson: payloadJSON})
+	c.mu.RLock()
+	client := c.client
+	c.mu.RUnlock()
+
+	_, err := client.Publish(ctx, &pb.PublishRequest{Topic: topic, PayloadJson: payloadJSON})
 	if err != nil {
 		return fmt.Errorf("publish to topic %q: %w", topic, err)
 	}

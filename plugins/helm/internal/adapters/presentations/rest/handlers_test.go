@@ -10,7 +10,7 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/litelensapp/litelens-plugins/plugins/helm/internal/dto"
+	"github.com/litelensapp/litelens-plugins/plugins/helm/internal/applications/dto"
 )
 
 // stubService is a minimal Service implementation for testing the HTTP layer
@@ -150,4 +150,3 @@ func TestGetReleaseByName_NotFound(t *testing.T) {
 		t.Fatalf("expected NOT_FOUND, got %q", got.Code)
 	}
 }
-

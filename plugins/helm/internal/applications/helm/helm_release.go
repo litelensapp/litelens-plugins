@@ -8,8 +8,7 @@ import (
 	"strings"
 	"time"
 
-	helmrest "github.com/litelensapp/litelens-plugins/plugins/helm/internal/api/rest"
-	"github.com/litelensapp/litelens-plugins/plugins/helm/internal/dto"
+	"github.com/litelensapp/litelens-plugins/plugins/helm/internal/applications/dto"
 	"github.com/litelensapp/litelens/packages/core/kube"
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/helmpath"
@@ -47,11 +46,7 @@ func (s *Service) ListHelmReleases() ([]dto.HelmRelease, error) {
 		namespace = namespaces[0]
 	}
 
-	getter := &helmrest.Getter{
-		RC:        rc,
-		Rules:     kube.LoadingRules(kubeconfigPaths),
-		Overrides: &clientcmd.ConfigOverrides{CurrentContext: activeCtx},
-	}
+	getter := s.getterFactory.NewRESTClientGetter(rc, kube.LoadingRules(kubeconfigPaths), &clientcmd.ConfigOverrides{CurrentContext: activeCtx})
 	cfg := new(action.Configuration)
 	if err := cfg.Init(getter, namespace, "secrets", func(string, ...any) {}); err != nil {
 		return []dto.HelmRelease{}, fmt.Errorf("helm: init configuration: %w", err)
@@ -159,11 +154,7 @@ func (s *Service) InstallHelmChart(namespace, releaseName, repository, chartName
 	}
 
 	// Set up helm configuration wired to the active cluster context.
-	getter := &helmrest.Getter{
-		RC:        rc,
-		Rules:     kube.LoadingRules(kubeconfigPaths),
-		Overrides: &clientcmd.ConfigOverrides{CurrentContext: activeCtx},
-	}
+	getter := s.getterFactory.NewRESTClientGetter(rc, kube.LoadingRules(kubeconfigPaths), &clientcmd.ConfigOverrides{CurrentContext: activeCtx})
 	cfg := new(action.Configuration)
 	if err := cfg.Init(getter, namespace, "secrets", func(string, ...any) {}); err != nil {
 		return fmt.Errorf("helm: init configuration: %w", err)
@@ -267,11 +258,7 @@ func (s *Service) UpgradeHelmRelease(namespace, releaseName, repository, chartNa
 	}
 
 	// Set up helm configuration wired to the active cluster context.
-	getter := &helmrest.Getter{
-		RC:        rc,
-		Rules:     kube.LoadingRules(kubeconfigPaths),
-		Overrides: &clientcmd.ConfigOverrides{CurrentContext: activeCtx},
-	}
+	getter := s.getterFactory.NewRESTClientGetter(rc, kube.LoadingRules(kubeconfigPaths), &clientcmd.ConfigOverrides{CurrentContext: activeCtx})
 	cfg := new(action.Configuration)
 	if err := cfg.Init(getter, namespace, "secrets", func(string, ...any) {}); err != nil {
 		return fmt.Errorf("helm: init configuration: %w", err)
@@ -325,11 +312,7 @@ func (s *Service) DeleteHelmRelease(namespace, releaseName string) error {
 	}
 
 	// Set up helm configuration wired to the active cluster context.
-	getter := &helmrest.Getter{
-		RC:        rc,
-		Rules:     kube.LoadingRules(kubeconfigPaths),
-		Overrides: &clientcmd.ConfigOverrides{CurrentContext: activeCtx},
-	}
+	getter := s.getterFactory.NewRESTClientGetter(rc, kube.LoadingRules(kubeconfigPaths), &clientcmd.ConfigOverrides{CurrentContext: activeCtx})
 	cfg := new(action.Configuration)
 	if err := cfg.Init(getter, namespace, "secrets", func(string, ...any) {}); err != nil {
 		return fmt.Errorf("helm: init configuration: %w", err)
@@ -360,11 +343,7 @@ func (s *Service) DeleteHelmReleaseWithCleanup(namespace, releaseName string) er
 		return fmt.Errorf("helm: no REST config for active context")
 	}
 
-	getter := &helmrest.Getter{
-		RC:        rc,
-		Rules:     kube.LoadingRules(kubeconfigPaths),
-		Overrides: &clientcmd.ConfigOverrides{CurrentContext: activeCtx},
-	}
+	getter := s.getterFactory.NewRESTClientGetter(rc, kube.LoadingRules(kubeconfigPaths), &clientcmd.ConfigOverrides{CurrentContext: activeCtx})
 	cfg := new(action.Configuration)
 	if err := cfg.Init(getter, namespace, "secrets", func(string, ...any) {}); err != nil {
 		return fmt.Errorf("helm: init configuration: %w", err)
@@ -663,11 +642,7 @@ func (s *Service) GetHelmReleaseByName(namespace, releaseName string) (*dto.Helm
 	}
 
 	// Set up helm configuration wired to the active cluster context.
-	getter := &helmrest.Getter{
-		RC:        rc,
-		Rules:     kube.LoadingRules(kubeconfigPaths),
-		Overrides: &clientcmd.ConfigOverrides{CurrentContext: activeCtx},
-	}
+	getter := s.getterFactory.NewRESTClientGetter(rc, kube.LoadingRules(kubeconfigPaths), &clientcmd.ConfigOverrides{CurrentContext: activeCtx})
 	cfg := new(action.Configuration)
 	if err := cfg.Init(getter, namespace, "secrets", func(string, ...any) {}); err != nil {
 		return nil, fmt.Errorf("helm: init configuration: %w", err)
@@ -726,11 +701,7 @@ func (s *Service) GetHelmReleaseHistory(namespace, releaseName string) ([]dto.He
 	}
 
 	// Set up helm configuration wired to the active cluster context.
-	getter := &helmrest.Getter{
-		RC:        rc,
-		Rules:     kube.LoadingRules(kubeconfigPaths),
-		Overrides: &clientcmd.ConfigOverrides{CurrentContext: activeCtx},
-	}
+	getter := s.getterFactory.NewRESTClientGetter(rc, kube.LoadingRules(kubeconfigPaths), &clientcmd.ConfigOverrides{CurrentContext: activeCtx})
 	cfg := new(action.Configuration)
 	if err := cfg.Init(getter, namespace, "secrets", func(string, ...any) {}); err != nil {
 		return []dto.HelmReleaseRevisionHistory{}, fmt.Errorf("helm: init configuration: %w", err)
@@ -795,11 +766,7 @@ func (s *Service) RollbackHelmRelease(namespace, releaseName string, revision in
 	}
 
 	// Set up helm configuration wired to the active cluster context.
-	getter := &helmrest.Getter{
-		RC:        rc,
-		Rules:     kube.LoadingRules(kubeconfigPaths),
-		Overrides: &clientcmd.ConfigOverrides{CurrentContext: activeCtx},
-	}
+	getter := s.getterFactory.NewRESTClientGetter(rc, kube.LoadingRules(kubeconfigPaths), &clientcmd.ConfigOverrides{CurrentContext: activeCtx})
 	cfg := new(action.Configuration)
 	if err := cfg.Init(getter, namespace, "secrets", func(string, ...any) {}); err != nil {
 		return fmt.Errorf("helm: init configuration: %w", err)
