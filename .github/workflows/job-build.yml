@@ -27,6 +27,18 @@ on:
         type: string
         required: true
         # Binary filename baked into the manifest's assets.binaryName, e.g. "plugin-helm".
+      minimumHostVersion:
+        type: string
+        required: false
+        default: "0.1.0"
+        # Baked into the manifest's minimumHostVersion — the lowest host app
+        # version able to load this plugin build.
+      maximumHostVersion:
+        type: string
+        required: false
+        default: "999.999.999"
+        # Baked into the manifest's maximumHostVersion — the highest host app
+        # version able to load this plugin build.
       version:
         type: string
         required: false
@@ -290,6 +302,8 @@ jobs:
             --arg bundleDir "dist" \
             --arg logoFile "$LOGO_FILE" \
             --argjson capabilities "$CAPABILITIES_JSON" \
+            --arg minimumHostVersion "${{ inputs.minimumHostVersion }}" \
+            --arg maximumHostVersion "${{ inputs.maximumHostVersion }}" \
             '{
               id: $id,
               name: $name,
@@ -297,8 +311,8 @@ jobs:
               version: $version,
               repository: $repository,
               homepage: $homepage,
-              minimumHostVersion: "0.1.0",
-              maximumHostVersion: "999.999.999",
+              minimumHostVersion: $minimumHostVersion,
+              maximumHostVersion: $maximumHostVersion,
               os: {
                 linux: ["amd64"],
                 darwin: ["arm64"],

@@ -3,7 +3,7 @@ module github.com/litelensapp/litelens-plugins/plugins/helm
 go 1.26.5
 
 require (
-	github.com/litelensapp/litelens/packages/core v1.7.4
+	github.com/litelensapp/litelens/packages/core v1.7.5
 	google.golang.org/grpc v1.83.2
 	helm.sh/helm/v3 v3.21.4
 	k8s.io/api v0.37.0
@@ -12,9 +12,6 @@ require (
 	k8s.io/client-go v0.37.0
 	sigs.k8s.io/yaml v1.6.0
 )
-
-// TODO: remove this replace and pin a released packages/core version before merging to main
-replace github.com/litelensapp/litelens/packages/core => ../../../litelens/packages/core
 
 require (
 	dario.cat/mergo v1.0.2 // indirect
