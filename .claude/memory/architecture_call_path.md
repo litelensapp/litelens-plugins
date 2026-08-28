@@ -5,7 +5,7 @@ metadata:
   node_type: memory
   type: project
   originSessionId: 7d5e9c83-be5e-4cf5-9fd6-36ce1356d5fc
-  modified: 2026-08-27T13:08:00.926Z
+  modified: 2026-08-28T07:38:49.831Z
 ---
 
 The business/data-plane call path is **plugin frontend → plugin backend directly over localhost HTTP**
@@ -46,3 +46,20 @@ business calls) — see [[file-structure]] for the three-place sync required
 no HTTP entry point — they're exclusively the two gRPC subscribe streams. `docs/architecture/*.mmd`
 mirrors this call path; regenerate the SVGs (`docs/architecture/architecture.md` has the mermaid-cli
 command) whenever the wire contract changes.
+
+**Install/upgrade is fire-and-forget over HTTP, reconciled later over gRPC events.** The
+`InstallHelmChart`/`UpgradeHelmChart` HTTP handlers only kick off a goroutine (`install.RunWithContext`
+etc.) and return once the release name is resolved — before Helm has actually persisted the
+pending-install/upgrade record. The frontend mutation hooks (`useInstallHelmChart.tsx`,
+`useUpgradeHelmChart.tsx`) therefore don't invalidate+refetch on HTTP success (that would race the
+goroutine and read the pre-install list); instead they seed the react-query cache directly with a
+synthetic `pending-install`/`pending-upgrade` release row. The definitive reconciliation happens later,
+off the `helm:install:complete`/`error` and `helm:upgrade:complete`/`error` gRPC-relayed events (see
+[[file-structure]] `src/events.ts`), which do the real invalidate once Helm reaches deployed/failed.
+**Why:** async HTTP-trigger + async gRPC-event-confirm is inherent to spawning `install.RunWithContext`
+in a goroutine — there's no synchronous "done" signal to wait on over HTTP.
+
+**Backend caches Helm `action.Configuration`/discovery/repo-index lookups** ([[file-structure]]
+`cache.go`) instead of rebuilding them per business call — config cache is invalidated wholesale on
+active-context switch (`invalidateAllConfigs`, called from `SetActiveContext`) since a new cluster
+context makes every cached `action.Configuration`/discovery entry stale.
