@@ -73,7 +73,7 @@ func (s *Service) getOrCreateConfig(namespace, activeCtx string) (*action.Config
 		return nil, fmt.Errorf("helm: no active kubernetes context or REST config")
 	}
 
-	cached, _ := s.cache.getConfig(activeCtx)
+	cached := s.cache.getConfig(activeCtx, namespace)
 	if cached != nil {
 		return cached, nil
 	}
@@ -84,7 +84,7 @@ func (s *Service) getOrCreateConfig(namespace, activeCtx string) (*action.Config
 		return nil, fmt.Errorf("helm: init configuration: %w", err)
 	}
 
-	s.cache.setConfig(activeCtx, cfg)
+	s.cache.setConfig(activeCtx, namespace, cfg)
 	return cfg, nil
 }
 
@@ -117,7 +117,7 @@ func (s *Service) getOrCreateIndex(repository string) (*repo.IndexFile, map[stri
 
 // getOrCreateDiscoveryMap returns a cached discovery result or fetches it.
 func (s *Service) getOrCreateDiscoveryMap(activeCtx string, cs *kubernetes.Clientset) map[string]gvrMeta {
-	_, gvrMap := s.cache.getConfig(activeCtx)
+	gvrMap := s.cache.getDiscovery(activeCtx)
 	if len(gvrMap) > 0 {
 		return gvrMap
 	}

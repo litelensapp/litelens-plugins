@@ -9,11 +9,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
-type configCacheEntry struct {
-	cfg *action.Configuration
-	gvr map[string]gvrMeta
-}
-
 type gvrMeta struct {
 	gvr        schema.GroupVersionResource
 	namespaced bool
@@ -26,52 +21,65 @@ type indexCacheEntry struct {
 }
 
 type cache struct {
-	mu               sync.RWMutex
-	configCache      map[string]*configCacheEntry
-	indexCache       map[string]*indexCacheEntry
-	indexCacheTTL    time.Duration
-	currentContext   string
+	mu sync.RWMutex
+
+	// configCache holds one action.Configuration per (context, namespace) pair —
+	// action.Configuration.Init binds a fixed storage namespace, so entries must
+	// not be shared across namespaces within the same cluster context.
+	configCache map[configCacheKey]*action.Configuration
+
+	// discoveryCache holds one server-resource discovery result per cluster
+	// context. Discovery is cluster-wide (not namespace-scoped), so it is kept
+	// separate from configCache rather than namespace-keyed.
+	discoveryCache map[string]map[string]gvrMeta
+
+	indexCache    map[string]*indexCacheEntry
+	indexCacheTTL time.Duration
+}
+
+type configCacheKey struct {
+	context   string
+	namespace string
 }
 
 func newCache() *cache {
 	return &cache{
-		configCache:   make(map[string]*configCacheEntry),
-		indexCache:    make(map[string]*indexCacheEntry),
-		indexCacheTTL: 10 * time.Minute,
+		configCache:    make(map[configCacheKey]*action.Configuration),
+		discoveryCache: make(map[string]map[string]gvrMeta),
+		indexCache:     make(map[string]*indexCacheEntry),
+		indexCacheTTL:  10 * time.Minute,
 	}
 }
 
-func (c *cache) getConfig(contextName string) (*action.Configuration, map[string]gvrMeta) {
+func (c *cache) getConfig(contextName, namespace string) *action.Configuration {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	if entry, ok := c.configCache[contextName]; ok {
-		return entry.cfg, entry.gvr
-	}
-	return nil, nil
+	return c.configCache[configCacheKey{context: contextName, namespace: namespace}]
 }
 
-func (c *cache) setConfig(contextName string, cfg *action.Configuration) {
+func (c *cache) setConfig(contextName, namespace string, cfg *action.Configuration) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.configCache[contextName] = &configCacheEntry{
-		cfg: cfg,
-		gvr: make(map[string]gvrMeta),
-	}
-	c.currentContext = contextName
+	c.configCache[configCacheKey{context: contextName, namespace: namespace}] = cfg
+}
+
+func (c *cache) getDiscovery(contextName string) map[string]gvrMeta {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.discoveryCache[contextName]
 }
 
 func (c *cache) setDiscovery(contextName string, gvr map[string]gvrMeta) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if entry, ok := c.configCache[contextName]; ok {
-		entry.gvr = gvr
-	}
+	c.discoveryCache[contextName] = gvr
 }
 
 func (c *cache) invalidateAllConfigs() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.configCache = make(map[string]*configCacheEntry)
+	c.configCache = make(map[configCacheKey]*action.Configuration)
+	c.discoveryCache = make(map[string]map[string]gvrMeta)
 }
 
 func (c *cache) getIndex(repository string) (*repo.IndexFile, map[string]*repo.ChartVersion) {
