@@ -127,12 +127,13 @@ func (h *Handler) installChart(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "INVALID_REQUEST", "invalid request body")
 		return
 	}
-	if err := h.svc.InstallHelmChart(req.Namespace, req.ReleaseName, req.Repository, req.ChartName, req.Version, req.ValuesYAML); err != nil {
+	relName, err := h.svc.InstallHelmChart(req.Namespace, req.ReleaseName, req.Repository, req.ChartName, req.Version, req.ValuesYAML)
+	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: install chart: %v\n", err)
 		writeError(w, http.StatusServiceUnavailable, "PLUGIN_UNAVAILABLE", "failed to install chart")
 		return
 	}
-	writeJSON(w, struct{}{})
+	writeJSON(w, struct{ ReleaseName string }{ReleaseName: relName})
 }
 
 func (h *Handler) upgradeRelease(w http.ResponseWriter, r *http.Request) {

@@ -65,7 +65,7 @@ func (l *LockedService) GetArtifactHubReadme(repository, chartName, version stri
 	return l.svc.GetArtifactHubReadme(repository, chartName, version)
 }
 
-func (l *LockedService) InstallHelmChart(namespace, releaseName, repository, chartName, version, valuesYAML string) error {
+func (l *LockedService) InstallHelmChart(namespace, releaseName, repository, chartName, version, valuesYAML string) (string, error) {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
 	return l.svc.InstallHelmChart(namespace, releaseName, repository, chartName, version, valuesYAML)

@@ -140,8 +140,8 @@ export const InstallHelmChart = (
   chartName: string,
   version: string,
   valuesYAML: string
-): Promise<void> =>
-  fetchWithRetry<void>("installChart", {
+): Promise<{ ReleaseName: string }> =>
+  fetchWithRetry<{ ReleaseName: string }>("installChart", {
     Namespace: namespace,
     ReleaseName: releaseName,
     Repository: repository,

@@ -45,8 +45,8 @@ func (s *stubService) GetHelmChartDetail(repository, chartName, version string) 
 func (s *stubService) GetArtifactHubReadme(repository, chartName, version string) (string, error) {
 	return "", nil
 }
-func (s *stubService) InstallHelmChart(namespace, releaseName, repository, chartName, version, valuesYAML string) error {
-	return nil
+func (s *stubService) InstallHelmChart(namespace, releaseName, repository, chartName, version, valuesYAML string) (string, error) {
+	return releaseName, nil
 }
 func (s *stubService) UpgradeHelmRelease(namespace, releaseName, repository, chartName, version, valuesYAML string) error {
 	return nil

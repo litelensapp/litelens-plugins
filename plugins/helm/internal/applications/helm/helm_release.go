@@ -93,25 +93,29 @@ func (s *Service) ListHelmReleases() ([]dto.HelmRelease, error) {
 	return result, nil
 }
 
-// InstallHelmChart installs a helm chart into the specified namespace.
-func (s *Service) InstallHelmChart(namespace, releaseName, repository, chartName, version, valuesYAML string) error {
+// InstallHelmChart installs a helm chart into the specified namespace. Returns the
+// release name synchronously (generating one if releaseName is empty) so the caller
+// can optimistically show a pending-install entry before the install goroutine
+// finishes — Helm itself doesn't persist the release record until partway through
+// RunWithContext, well after this method returns.
+func (s *Service) InstallHelmChart(namespace, releaseName, repository, chartName, version, valuesYAML string) (string, error) {
 	cs, rc, activeCtx, _ := s.provider.ActiveClients()
 	if cs == nil {
-		return fmt.Errorf("helm: no active kubernetes context")
+		return "", fmt.Errorf("helm: no active kubernetes context")
 	}
 	if rc == nil {
-		return fmt.Errorf("helm: no REST config for active context")
+		return "", fmt.Errorf("helm: no REST config for active context")
 	}
 
 	// Load the chart index to get the download URL (with caching)
 	index, versionMap, err := s.getOrCreateIndex(repository)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	versions, ok := index.Entries[chartName]
 	if !ok || len(versions) == 0 {
-		return fmt.Errorf("helm: chart %q not found in repo %q", chartName, repository)
+		return "", fmt.Errorf("helm: chart %q not found in repo %q", chartName, repository)
 	}
 
 	var chartVersion = versions[0]
@@ -119,29 +123,29 @@ func (s *Service) InstallHelmChart(namespace, releaseName, repository, chartName
 		if cv, ok := versionMap[version]; ok {
 			chartVersion = cv
 		} else {
-			return fmt.Errorf("helm: version %q of chart %q not found", version, chartName)
+			return "", fmt.Errorf("helm: version %q of chart %q not found", version, chartName)
 		}
 	}
 
 	if len(chartVersion.URLs) == 0 {
-		return fmt.Errorf("helm: no download URLs found for chart %q version %q", chartName, chartVersion.Version)
+		return "", fmt.Errorf("helm: no download URLs found for chart %q version %q", chartName, chartVersion.Version)
 	}
 	chartURL, err := resolveChartURL(repository, chartVersion.URLs[0])
 	if err != nil {
-		return fmt.Errorf("helm: resolve chart URL: %w", err)
+		return "", fmt.Errorf("helm: resolve chart URL: %w", err)
 	}
 
 	dlCtx, dlCancel := context.WithTimeout(s.provider.Ctx(), 60*time.Second)
 	defer dlCancel()
 	chart, err := downloadChart(dlCtx, chartURL)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	// Set up helm configuration wired to the active cluster context (cached).
 	cfg, err := s.getOrCreateConfig(namespace, activeCtx)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	// Create install action (synchronous setup only)
@@ -161,7 +165,7 @@ func (s *Service) InstallHelmChart(namespace, releaseName, repository, chartName
 	var vals map[string]interface{}
 	if valuesYAML != "" {
 		if err := yaml.Unmarshal([]byte(valuesYAML), &vals); err != nil {
-			return fmt.Errorf("helm: parse custom values: %w", err)
+			return "", fmt.Errorf("helm: parse custom values: %w", err)
 		}
 	}
 
@@ -185,7 +189,7 @@ func (s *Service) InstallHelmChart(namespace, releaseName, repository, chartName
 		})
 	}()
 
-	return nil
+	return relName, nil
 }
 
 // UpgradeHelmRelease upgrades an existing helm release to a different chart version.
