@@ -32,11 +32,18 @@ A gRPC connection still exists, but only as a thin control channel in the _oppos
 the old model: the plugin dials the host and subscribes to generic pub/sub topics (`cluster.context`,
 `namespaces.active`), rather than the host driving every plugin call.
 
+The gRPC pub/sub client, backoff reconnection, and generic event-route/dispatch framework used to
+live in this repo but have been extracted into `packages/core/async` in the sibling `litelens` host
+repo, since every plugin (not just helm) needs to sync `activeContext`/`activeNamespaces` from the
+host the same way. `plugins/helm/go.mod` currently pulls that package in via a **temporary local
+`replace` directive** (not a published version) — it must be swapped for a real version bump once
+`packages/core` is tagged/released.
+
 The Go backend (`plugins/helm/internal/`) follows hexagonal architecture:
 `internal/applications/` (business logic + `port` interfaces, framework-agnostic) is driven by
-`internal/adapters/presentations/rest/` (inbound HTTP) and drives
-`internal/adapters/infrastructures/{app,kube,restconfig}/` (outbound gRPC pub/sub client, k8s cluster
-provider, Helm REST-config shim).
+`internal/adapters/presentations/{rest,async}/` (inbound HTTP; thin helm-specific wiring over the
+shared `packages/core/async` event routes) and drives
+`internal/adapters/infrastructures/{kube,restconfig}/` (k8s cluster provider, Helm REST-config shim).
 
 Backend and frontend (`plugins/helm/frontend/src/`) directory-level detail — handshake/gRPC-watch
 wiring in `main.go`, the `applications/lock.LockedService` locking strategy, HTTP route/error

@@ -5,7 +5,7 @@ metadata:
   node_type: memory
   type: reference
   originSessionId: 7d5e9c83-be5e-4cf5-9fd6-36ce1356d5fc
-  modified: 2026-08-28T07:38:37.672Z
+  modified: 2026-08-28T14:36:35.726Z
 ---
 
 litelens-plugins is the official plugin repo for Litelens (Wails Kubernetes desktop app). Each plugin
@@ -21,20 +21,29 @@ Repo-level:
 - `docs/architecture/` holds the architecture diagram (`architecture-{light,dark}.mmd` + rendered
   `.svg`, `architecture.md` with the mermaid-cli regen command). Keep in sync with this file and
   [[architecture-call-path]] when the plugin/host wire contract changes.
+- The reusable gRPC pub/sub sync machinery (client, backoff, generic event-route/dispatch framework,
+  event DTOs) lives in `packages/core/async` in the sibling `litelens` (host) repo, not in this repo —
+  `plugins/helm/go.mod` currently depends on it via a **temporary local `replace` directive** pending a
+  real tagged release. See [[architecture-call-path]].
 
 `plugins/helm/internal/` (Go backend, HTTP + gRPC-client subprocess, **hexagonal architecture** —
 refactored from the old flat `internal/api`/`internal/helm`/`internal/kube` layout):
 - `internal/main.go` — process entrypoint. Reads an auth token from stdin
   (`util.ReadAuthTokenFromStdin`, before any gRPC ops), dials the host's gRPC server if
-  `LITELENS_HOST_GRPC_PORT` is set, builds a `kube.DynamicClusterProvider`, wraps
-  `applications/helm.Service` in `applications/lock.LockedService`, spawns
-  `DynamicClusterProvider.WatchClusterContext` and `.WatchActiveNamespaces` goroutines (each dials its
-  *own* dedicated `GrpcClient` — sharing one would tear down the other's stream on reconnect), calls
-  `WaitForInitialSync(5s)` to block the first business call until the host's replay lands, then starts
-  `adapters/presentations/rest.HttpServer` (blocks for process lifetime).
+  `LITELENS_HOST_GRPC_PORT` is set (via `coreasync.GrpcClient` — aliased `coreasync` in this file only,
+  since `main` also imports the plugin's own local `presentations/async` package under the bare
+  identifier `async`), builds a `kube.DynamicClusterProvider`, wraps `applications/helm.Service` in
+  `applications/lock.LockedService`, builds `presentations/async.NewEventDispatcher(dp)` (two
+  `coreasync.EventRoute`s — cluster-context, active-namespaces — each still dialing its *own* dedicated
+  `GrpcClient` internally, sharing one would tear down the other's stream on reconnect) and calls
+  `.StartAll(...)`, then `dp.WaitForInitialSync(5s)` to block the first business call until the host's
+  replay lands, then starts `adapters/presentations/rest.HttpServer` (blocks for process lifetime).
 - `internal/applications/` — framework-agnostic core:
   - `applications/port/driven.go` — outbound interfaces the core depends on: `ClusterProvider`,
-    `MutableClusterProvider`, `RESTClientGetterFactory`, `EventEmitter` func type.
+    `MutableClusterProvider`, `RESTClientGetterFactory`, `EventEmitter` func type. No longer holds an
+    `EventReceiver` alias — `kube.DynamicClusterProvider` implements
+    `github.com/litelensapp/litelens/packages/core/async.EventReceiver` directly (the port-layer
+    indirection for this interface was abolished).
   - `applications/port/driver.go` — `HelmService` interface (what the core exposes inbound), defined
     here rather than in `applications/helm` to avoid circular imports.
   - `applications/helm/` — `Service` (`helm.go`/`helm_chart.go`/`helm_release.go`/`utils.go`), talks to
@@ -42,8 +51,10 @@ refactored from the old flat `internal/api`/`internal/helm`/`internal/kube` layo
   - `applications/lock/lock.go` — `LockedService` wraps `*helm.Service` in `sync.RWMutex` (business
     methods take `RLock`, `SetActiveContext` takes `Lock`) so a context swap can't race an in-flight
     business call.
-  - `applications/dto/` — `helm.go` (Helm-specific DTOs, plugin-owned) + `stream.go` (`SubscribeStream`
-    type used by the gRPC adapter).
+  - `applications/dto/` — `helm.go` only (Helm-specific DTOs, plugin-owned). The event DTOs
+    (`ClusterContextEvent`/`ActiveNamespacesEvent`, formerly `dto/kube.go`) and the `SubscribeStream`
+    type (formerly `dto/stream.go`) moved to `packages/core/async` (`dto.go`/`stream.go`) — they're
+    shared plugin-sync types, not helm-specific.
   - `applications/helm/cache.go` — in-memory `cache` used by `Service` to avoid rebuilding
     `action.Configuration` / re-parsing repo index files / re-running discovery on every business
     call. Keyed by `configCacheKey{context, namespace}` (namespace-keyed because
@@ -59,17 +70,26 @@ refactored from the old flat `internal/api`/`internal/helm`/`internal/kube` layo
   JSON handshake (`{"type":"READY","version":...,"httpPort":...,"pid":...,"timestamp":...}`) before
   blocking. `response.go`: `writeError`/`writeJSON`, codes `PLUGIN_UNAVAILABLE` (503),
   `INVALID_REQUEST` (400), `NOT_FOUND` (404), `INTERNAL_ERROR` (500).
-- `internal/adapters/infrastructures/app/` (package `grpc`) — outbound gRPC pub/sub client, generic
-  (not Helm-specific): `client.go`'s `GrpcClient` (`Dial`, `Subscribe(topic)`, `Publish(ctx, topic,
-  payloadJSON)`, `DialAndSubscribe`), `interceptor.go`'s `NewAuthInterceptors` (attaches `bearer
-  <token>` to every outgoing unary/stream call), `emitter.go`'s `Emit` (marshals + `Publish`s to
-  `plugins.<pluginID>.<eventName>`, async via goroutine + 5s timeout), `receiver.go`'s
-  `RecvClusterContext`/`RecvActiveNamespaces` (decode JSON payload off a `SubscribeStream`). Imports
-  `pb` from `github.com/litelensapp/litelens/packages/core/pb` — no local `.proto` copy.
+- `internal/adapters/infrastructures/app/` no longer exists — the outbound gRPC pub/sub client
+  (`GrpcClient.Dial`/`Subscribe`/`Publish`/`DialAndSubscribe`), auth interceptor
+  (`NewAuthInterceptors`), event emitter (`Emit`), and backoff reconnector (`BackoffReconnector`) were
+  all generic (not Helm-specific) and have been extracted into `packages/core/async` in the sibling
+  `litelens` repo (see [[architecture-call-path]]), reusable by any future plugin. `pb` is still
+  imported from `github.com/litelensapp/litelens/packages/core/pb` — no local `.proto` copy.
+- `internal/adapters/presentations/async/` — thin helm-specific wiring over the shared
+  `packages/core/async` event-route framework (unaliased import — this package's own name is also
+  `async`, so no collision): `handlers.go`'s `Handler` (dispatches deserialized `async.
+  ClusterContextEvent`/`async.ActiveNamespacesEvent` to an `async.EventReceiver`) and
+  `dispatcher.go`'s `EventDispatcher` (holds `[]async.EventRoute` built via `async.NewRoute(topic,
+  handler, deserializer)` for the two topics, `StartAll` loops and `go route.Run(grpcAddr, authToken)`
+  for each — core no longer exposes its own `EventDispatcher`/`NewEventDispatcher`, that type was
+  abolished in core and this plugin-local wrapper now owns the route slice + start loop directly).
 - `internal/adapters/infrastructures/kube/` — `cluster.go`'s `DynamicClusterProvider` (mutable active
-  cluster client + active-namespace filter, `SetActiveContext`, sync-from-host + `WaitForInitialSync`
-  gating, `WatchClusterContext`/`WatchActiveNamespaces` reconnect loops) and `connector.go`'s
-  `BackoffReconnector` (exponential backoff, 30s max interval).
+  cluster client + active-namespace filter, `SetActiveContext`, `SyncClusterContext`/
+  `SyncActiveNamespaces` implementing `async.EventReceiver`, `WaitForInitialSync` gating). No longer
+  has its own `WatchClusterContext`/`WatchActiveNamespaces` reconnect loops or a local
+  `connector.go`/`BackoffReconnector` — that reconnect-loop logic now lives generically inside each
+  `packages/core/async.eventRoute[T].Run`, driven by `presentations/async.EventDispatcher`.
 - `internal/adapters/infrastructures/restconfig/` — `getter.go`'s `Getter` (implements
   `genericclioptions.RESTClientGetter` off a live `rest.Config`) + `Factory` (implements
   `port.RESTClientGetterFactory`).
