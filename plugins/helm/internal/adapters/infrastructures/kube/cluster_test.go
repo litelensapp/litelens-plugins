@@ -2,22 +2,10 @@ package kube
 
 import (
 	"context"
-	"encoding/json"
-	"errors"
-	"fmt"
-	"io"
-	"net"
 	"os"
 	"sync"
 	"sync/atomic"
 	"testing"
-	"time"
-
-	"google.golang.org/grpc"
-
-	grpcclient "github.com/litelensapp/litelens-plugins/plugins/helm/internal/adapters/infrastructures/app"
-	"github.com/litelensapp/litelens/packages/core/pb"
-	"github.com/litelensapp/litelens/packages/core/util"
 )
 
 // TestDynamicClusterProvider_Idempotency documents that setting the same context twice is safe.
@@ -77,174 +65,40 @@ func TestDynamicClusterProvider_ConcurrentContextAccess(t *testing.T) {
 	}
 }
 
-// fakeSubscribeStream is a scripted SubscribeStream: it yields the given
-// PubSubMessage events in order, then returns finalErr forever.
-type fakeSubscribeStream struct {
-	events   []*pb.PubSubMessage
-	finalErr error
-	idx      int
-}
-
-func (f *fakeSubscribeStream) Recv() (*pb.PubSubMessage, error) {
-	if f.idx < len(f.events) {
-		e := f.events[f.idx]
-		f.idx++
-		return e, nil
-	}
-	return nil, f.finalErr
-}
-
-// TestProcessWatchStream_StreamErrorHandling verifies that ProcessWatchStream syncs
-// every event in order and returns the error that ended the stream.
-func TestProcessWatchStream_StreamErrorHandling(t *testing.T) {
-	streamErr := errors.New("stream closed")
-	stream := &fakeSubscribeStream{
-		events: []*pb.PubSubMessage{
-			{
-				Topic:       string(util.EventTopicClusterContext),
-				PayloadJson: `{"contextName":"ctx-a","kubeconfigPath":"/a"}`,
-			},
-			{
-				Topic:       string(util.EventTopicClusterContext),
-				PayloadJson: `{"contextName":"ctx-b","kubeconfigPath":"/b"}`,
-			},
-		},
-		finalErr: streamErr,
-	}
-
+// TestDynamicClusterProvider_SyncClusterContext verifies that SyncClusterContext
+// (the syncer port) correctly updates the active context.
+func TestDynamicClusterProvider_SyncClusterContext(t *testing.T) {
 	provider := NewDynamicClusterProvider(context.Background())
-	var synced []string
-	err := provider.ProcessWatchStream(grpcclient.NewGrpcClient(nil), stream, func(contextName, kubeconfigPath string) error {
-		synced = append(synced, fmt.Sprintf("%s:%s", contextName, kubeconfigPath))
-		return nil
-	})
-
-	if !errors.Is(err, streamErr) {
-		t.Fatalf("expected ProcessWatchStream to return the stream error, got %v", err)
-	}
-	want := []string{"ctx-a:/a", "ctx-b:/b"}
-	if len(synced) != len(want) || synced[0] != want[0] || synced[1] != want[1] {
-		t.Fatalf("expected sync calls %v, got %v", want, synced)
-	}
-}
-
-// TestProcessWatchStream_ConcurrentContextChanges verifies that a sync failure on one
-// event does not stop later events in the same stream from being processed.
-func TestProcessWatchStream_ConcurrentContextChanges(t *testing.T) {
-	streamErr := errors.New("stream closed")
-	stream := &fakeSubscribeStream{
-		events: []*pb.PubSubMessage{
-			{
-				Topic:       string(util.EventTopicClusterContext),
-				PayloadJson: `{"contextName":"ctx-fail","kubeconfigPath":"/fail"}`,
-			},
-			{
-				Topic:       string(util.EventTopicClusterContext),
-				PayloadJson: `{"contextName":"ctx-ok","kubeconfigPath":"/ok"}`,
-			},
-		},
-		finalErr: streamErr,
-	}
-
-	provider := NewDynamicClusterProvider(context.Background())
-	var synced []string
-	err := provider.ProcessWatchStream(grpcclient.NewGrpcClient(nil), stream, func(contextName, kubeconfigPath string) error {
-		synced = append(synced, contextName)
-		if contextName == "ctx-fail" {
-			return errors.New("sync failed")
-		}
-		return nil
-	})
-
-	if !errors.Is(err, streamErr) {
-		t.Fatalf("expected ProcessWatchStream to return the stream error, got %v", err)
-	}
-	if len(synced) != 2 || synced[0] != "ctx-fail" || synced[1] != "ctx-ok" {
-		t.Fatalf("expected both events processed despite sync error, got %v", synced)
-	}
-}
-
-// TestWatchClusterContext_ReconnectLoop runs the real WatchClusterContext goroutine
-// against a real gRPC server that is not yet listening at goroutine start (forcing at
-// least one dial-error/backoff cycle), then starts listening and streams a real event,
-// verifying the provider's active context actually gets synced end-to-end.
-func TestWatchClusterContext_ReconnectLoop(t *testing.T) {
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatalf("reserve address: %v", err)
-	}
-	addr := ln.Addr().String()
-	_, port, err := net.SplitHostPort(addr)
-	if err != nil {
-		t.Fatalf("split host port: %v", err)
-	}
-	ln.Close()
-
 	kubeconfigPath := writeFakeKubeconfig(t)
 
-	provider := NewDynamicClusterProvider(context.Background())
-	testToken := "test-token-64chars-" + "x" // Use a test auth token
-	go provider.WatchClusterContext(port, testToken)
-
-	// WatchClusterContext's first dial attempt hits "connection refused" since nothing
-	// is listening yet; give it a moment to actually run that failing attempt before
-	// the host starts, so the reconnect path (not just the happy path) is exercised.
-	time.Sleep(100 * time.Millisecond)
-
-	ln2, err := net.Listen("tcp", addr)
+	// Call SyncClusterContext
+	err := provider.SyncClusterContext(context.Background(), "test-context", kubeconfigPath)
 	if err != nil {
-		t.Fatalf("re-listen on %s: %v", addr, err)
+		t.Fatalf("SyncClusterContext failed: %v", err)
 	}
 
-	// Create the PubSubMessage with JSON payload
-	eventPayload, _ := json.Marshal(map[string]string{
-		"contextName":    "test-context",
-		"kubeconfigPath": kubeconfigPath,
-	})
-	events := make(chan *pb.PubSubMessage, 1)
-	events <- &pb.PubSubMessage{
-		Topic:       string(util.EventTopicClusterContext),
-		Source:      "host",
-		PayloadJson: string(eventPayload),
+	// Verify the active context was set
+	_, _, activeContext, _ := provider.ActiveClients()
+	if activeContext != "test-context" {
+		t.Fatalf("expected active context 'test-context', got %q", activeContext)
 	}
-	mock := &streamingMockPluginServer{events: events}
-	srv := grpc.NewServer()
-	pb.RegisterPluginServer(srv, mock)
-	go srv.Serve(ln2)
-	defer srv.Stop()
-
-	deadline := time.Now().Add(5 * time.Second)
-	for time.Now().Before(deadline) {
-		_, _, activeContext, _ := provider.ActiveClients()
-		if activeContext == "test-context" {
-			return
-		}
-		time.Sleep(20 * time.Millisecond)
-	}
-	t.Fatal("WatchClusterContext did not sync the streamed event within the deadline")
 }
 
-// streamingMockPluginServer sends every event on the events channel to the client,
-// then blocks until the stream context is cancelled — simulating a live host that
-// has one pending cluster-context event to deliver on (re)subscribe.
-type streamingMockPluginServer struct {
-	pb.UnimplementedPluginServer
-	events chan *pb.PubSubMessage
-}
+// TestDynamicClusterProvider_SyncActiveNamespaces verifies that SyncActiveNamespaces
+// (the syncer port) correctly updates the active namespaces.
+func TestDynamicClusterProvider_SyncActiveNamespaces(t *testing.T) {
+	provider := NewDynamicClusterProvider(context.Background())
 
-func (m *streamingMockPluginServer) Subscribe(req *pb.SubscribeRequest, stream pb.Plugin_SubscribeServer) error {
-	for {
-		select {
-		case event, ok := <-m.events:
-			if !ok {
-				return io.EOF
-			}
-			if err := stream.Send(event); err != nil {
-				return err
-			}
-		case <-stream.Context().Done():
-			return stream.Context().Err()
-		}
+	namespaces := []string{"default", "kube-system"}
+	err := provider.SyncActiveNamespaces(context.Background(), namespaces)
+	if err != nil {
+		t.Fatalf("SyncActiveNamespaces failed: %v", err)
+	}
+
+	// Verify the active namespaces were set
+	activeNamespaces := provider.ActiveNamespaces()
+	if len(activeNamespaces) != len(namespaces) || activeNamespaces[0] != "default" || activeNamespaces[1] != "kube-system" {
+		t.Fatalf("expected namespaces %v, got %v", namespaces, activeNamespaces)
 	}
 }
 

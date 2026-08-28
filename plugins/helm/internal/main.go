@@ -12,6 +12,7 @@ import (
 	grpc "github.com/litelensapp/litelens-plugins/plugins/helm/internal/adapters/infrastructures/app"
 	"github.com/litelensapp/litelens-plugins/plugins/helm/internal/adapters/infrastructures/kube"
 	"github.com/litelensapp/litelens-plugins/plugins/helm/internal/adapters/infrastructures/restconfig"
+	"github.com/litelensapp/litelens-plugins/plugins/helm/internal/adapters/presentations/async"
 	"github.com/litelensapp/litelens-plugins/plugins/helm/internal/adapters/presentations/rest"
 	"github.com/litelensapp/litelens-plugins/plugins/helm/internal/applications/helm"
 	"github.com/litelensapp/litelens-plugins/plugins/helm/internal/applications/lock"
@@ -78,8 +79,9 @@ func main() {
 			fmt.Fprintf(os.Stderr, "error: cluster provider is not *kube.DynamicClusterProvider\n")
 			os.Exit(1)
 		}
-		go dp.WatchClusterContext(hostPort, authToken)
-		go dp.WatchActiveNamespaces(hostPort, authToken)
+
+		dispatcher := async.NewEventDispatcher(dp) // dp implements both syncer ports
+		dispatcher.StartAll(fmt.Sprintf("127.0.0.1:%s", hostPort), authToken)
 
 		// Block until the host's replayed cluster-context/active-namespaces messages
 		// land, so the first business call isn't served against BuildClusterProvider's

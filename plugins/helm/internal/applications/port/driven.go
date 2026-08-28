@@ -36,3 +36,12 @@ type MutableClusterProvider interface {
 type RESTClientGetterFactory interface {
 	NewRESTClientGetter(rc *rest.Config, rules *clientcmd.ClientConfigLoadingRules, overrides *clientcmd.ConfigOverrides) genericclioptions.RESTClientGetter
 }
+
+// EventReceiver is satisfied by any type implementing both driven ports the plugin's event
+// routes dispatch to (e.g. *kube.DynamicClusterProvider).
+type EventReceiver interface {
+	// SyncClusterContext syncs a cluster context update received from the host.
+	SyncClusterContext(ctx context.Context, contextName, kubeconfigPath string) error
+	// SyncActiveNamespaces syncs an active-namespaces update received from the host.
+	SyncActiveNamespaces(ctx context.Context, namespaces []string) error
+}
