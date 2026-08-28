@@ -130,4 +130,7 @@ require (
 	sigs.k8s.io/structured-merge-diff/v6 v6.4.2 // indirect
 )
 
+// TEMPORARY: replace directive for local unpublished packages/core — remove and bump version once core is released
+replace github.com/litelensapp/litelens/packages/core => /Users/gknguyen/Work/tech-projects/personal/litelens-app/litelens/packages/core
+
 tool honnef.co/go/tools/cmd/staticcheck

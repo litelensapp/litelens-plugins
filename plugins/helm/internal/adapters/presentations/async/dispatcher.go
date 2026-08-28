@@ -1,23 +1,24 @@
 package async
 
 import (
-	"github.com/litelensapp/litelens-plugins/plugins/helm/internal/applications/port"
-	"github.com/litelensapp/litelens/packages/core/util"
+	"github.com/litelensapp/litelens/packages/core/async"
 )
 
+// EventDispatcher wires the helm plugin's handler onto the shared core event routes,
+// then starts them.
 type EventDispatcher struct {
-	routes []EventRoute
+	routes []async.EventRoute
 }
 
 // NewEventDispatcher wires receiver's routes onto a new dispatcher, but does not start
 // them — call StartAll to launch the event loops.
-func NewEventDispatcher(receiver port.EventReceiver) *EventDispatcher {
+func NewEventDispatcher(receiver async.EventReceiver) *EventDispatcher {
 	h := NewHandler(receiver)
 
 	return &EventDispatcher{
-		routes: []EventRoute{
-			NewRoute(string(util.EventTopicClusterContext), h.handleClusterContext, deserializeClusterContext),
-			NewRoute(string(util.EventTopicNamespacesActive), h.handleActiveNamespaces, deserializeActiveNamespaces),
+		routes: []async.EventRoute{
+			async.NewRoute(string(async.EventTopicClusterContext), h.handleClusterContext, async.DeserializeClusterContext),
+			async.NewRoute(string(async.EventTopicNamespacesActive), h.handleActiveNamespaces, async.DeserializeActiveNamespaces),
 		},
 	}
 }

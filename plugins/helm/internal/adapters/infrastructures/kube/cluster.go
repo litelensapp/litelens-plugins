@@ -121,12 +121,12 @@ func (p *DynamicClusterProvider) syncNamespacesFromHost(namespaces []string) err
 	return err
 }
 
-// SyncClusterContext implements port.EventReceiver by delegating to syncContextFromHost.
+// SyncClusterContext implements async.EventReceiver by delegating to syncContextFromHost.
 func (p *DynamicClusterProvider) SyncClusterContext(ctx context.Context, contextName, kubeconfigPath string) error {
 	return p.syncContextFromHost(contextName, kubeconfigPath)
 }
 
-// SyncActiveNamespaces implements port.EventReceiver by delegating to syncNamespacesFromHost.
+// SyncActiveNamespaces implements async.EventReceiver by delegating to syncNamespacesFromHost.
 func (p *DynamicClusterProvider) SyncActiveNamespaces(ctx context.Context, namespaces []string) error {
 	return p.syncNamespacesFromHost(namespaces)
 }

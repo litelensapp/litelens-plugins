@@ -9,7 +9,6 @@ import (
 	"os"
 	"time"
 
-	grpc "github.com/litelensapp/litelens-plugins/plugins/helm/internal/adapters/infrastructures/app"
 	"github.com/litelensapp/litelens-plugins/plugins/helm/internal/adapters/infrastructures/kube"
 	"github.com/litelensapp/litelens-plugins/plugins/helm/internal/adapters/infrastructures/restconfig"
 	"github.com/litelensapp/litelens-plugins/plugins/helm/internal/adapters/presentations/async"
@@ -17,6 +16,7 @@ import (
 	"github.com/litelensapp/litelens-plugins/plugins/helm/internal/applications/helm"
 	"github.com/litelensapp/litelens-plugins/plugins/helm/internal/applications/lock"
 	"github.com/litelensapp/litelens-plugins/plugins/helm/internal/config"
+	coreasync "github.com/litelensapp/litelens/packages/core/async"
 	"github.com/litelensapp/litelens/packages/core/util"
 )
 
@@ -43,10 +43,10 @@ func main() {
 	// Set up the single gRPC client shared by event emission and by both
 	// cluster-context/active-namespaces watch loops (if the host is reachable)
 	hostPort := config.GetHostGRPCPort()
-	var hostClient *grpc.GrpcClient
+	var hostClient *coreasync.GrpcClient
 	if hostPort != "" {
 		addr := fmt.Sprintf("127.0.0.1:%s", hostPort)
-		client := &grpc.GrpcClient{}
+		client := &coreasync.GrpcClient{}
 		if err := client.Dial(addr, authToken); err != nil {
 			fmt.Fprintf(os.Stderr, "warning: failed to connect to host gRPC server: %v\n", err)
 		} else {
