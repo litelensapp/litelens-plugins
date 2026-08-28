@@ -14,6 +14,9 @@ vi.mock("../../../hooks/data-access/useGetHelmReleases", () => ({
 }));
 
 vi.mock("@litelens/core", () => ({
+  appWideAPI: {
+    getQueryClient: vi.fn(() => new QueryClient({ defaultOptions: { queries: { retry: false } } })),
+  },
   clusterWideAPI: {
     useExposeProperties: vi.fn(() => ({
       activeContext: "ctx",

@@ -5,7 +5,7 @@ metadata:
   node_type: memory
   type: reference
   originSessionId: 7d5e9c83-be5e-4cf5-9fd6-36ce1356d5fc
-  modified: 2026-08-27T13:07:46.318Z
+  modified: 2026-08-28T07:38:37.672Z
 ---
 
 litelens-plugins is the official plugin repo for Litelens (Wails Kubernetes desktop app). Each plugin
@@ -44,6 +44,14 @@ refactored from the old flat `internal/api`/`internal/helm`/`internal/kube` layo
     business call.
   - `applications/dto/` — `helm.go` (Helm-specific DTOs, plugin-owned) + `stream.go` (`SubscribeStream`
     type used by the gRPC adapter).
+  - `applications/helm/cache.go` — in-memory `cache` used by `Service` to avoid rebuilding
+    `action.Configuration` / re-parsing repo index files / re-running discovery on every business
+    call. Keyed by `configCacheKey{context, namespace}` (namespace-keyed because
+    `action.Configuration.Init` binds a fixed storage namespace — sharing across namespaces in the
+    same context returns the wrong one); discovery results are cluster-wide so they're cached
+    separately per-context; repo index entries carry a 10-minute TTL. `invalidateAllConfigs` clears
+    both config and discovery caches on active-context switch. See [[architecture-call-path]] for why
+    context switches must invalidate this.
 - `internal/adapters/presentations/rest/` — inbound HTTP adapter. `server.go`'s `NewHttpServer` binds
   the listener (hard-fails if not localhost — CORS-reflects `Origin`, so non-localhost would be
   unsafe), wires `handlers.go`'s `RegisterRoutes` (`POST /api/helm/<camelCaseMethod>`, one per
@@ -88,8 +96,15 @@ refactored from the old flat `internal/api`/`internal/helm`/`internal/kube` layo
   failure) triggers one cache-invalidate + refetch + retry, a parsed `{code,message}` error body does
   not retry.
 - `src/api/resources.ts` — TS types mirroring the Go DTOs/handler payloads.
-- `hooks/data-access/` — react-query queries; `hooks/data-mutation/` — mutations. (There is no
-  `hooks/async-events/` directory anymore — event handling lives in top-level `src/events.ts`.)
+- `src/api/query.client.ts` — exports `queryClient` (`appWideAPI.getQueryClient()`), a shared
+  singleton. All data-mutation hooks import this instead of calling `useQueryClient()` or
+  `appWideAPI.getQueryClient()` themselves — keeps cache reads/writes on one instance.
+- `hooks/data-access/` — react-query queries; `hooks/data-mutation/` — mutations
+  (`useInstallHelmChart.tsx`, `useUpgradeHelmChart.tsx` seed an optimistic `pending-install` /
+  `pending-upgrade` release into the `QUERY_KEY_HELM_RELEASES` cache in `onSuccess`, ahead of the
+  async `helm:install:complete`/`upgrade:complete` event that does the definitive invalidate — see
+  [[architecture-call-path]]). (There is no `hooks/async-events/` directory anymore — event handling
+  lives in top-level `src/events.ts`.)
 - `src/style.css` → compiled by `pnpm build:css` before `tsup`, embedded as `PLUGIN_STYLES` equivalent
   registered via `appWideAPI.registerStylesheets`.
 - Component tests live under `__tests__/` alongside the components they cover (vitest +

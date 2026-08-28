@@ -1,10 +1,10 @@
 import { renderErrorToast, renderSuccessToast } from "@litelens/design-system";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { QUERY_KEY_HELM_RELEASES } from "../../api/api.const";
+import { queryClient } from "../../api/query.client";
 import { RollbackHelmRelease } from "../../api/resources";
 
 export const useRollbackHelmRelease = () => {
-  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({
       namespace,

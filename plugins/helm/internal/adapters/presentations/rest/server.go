@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/litelensapp/litelens-plugins/plugins/helm/internal/applications/port"
 )
 
@@ -57,11 +58,12 @@ func NewHttpServer(listen, version string, svc port.HelmService) (*HttpServer, e
 		return nil, fmt.Errorf("convert http port to int: %w", err)
 	}
 
-	mux := http.NewServeMux()
-	NewHandler(svc).RegisterRoutes(mux)
+	router := chi.NewRouter()
+	router.Use(corsMiddleware)
+	NewHandler(svc).RegisterRoutes(router)
 
 	return &HttpServer{
-		httpSrv: &http.Server{Handler: corsMiddleware(mux)},
+		httpSrv: &http.Server{Handler: router},
 		ln:      ln,
 		version: version,
 		Port:    port,

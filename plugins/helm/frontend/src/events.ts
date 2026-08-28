@@ -1,6 +1,6 @@
-import { appWideAPI } from "@litelens/core";
 import { renderErrorToast, renderSuccessToast } from "@litelens/design-system";
 import { QUERY_KEY_HELM_RELEASE_DETAIL, QUERY_KEY_HELM_RELEASES } from "./api/api.const";
+import { queryClient } from "./api/query.client";
 
 interface HelmInstallPayload {
   releaseName: string;
@@ -29,8 +29,6 @@ interface CleanupErrorPayload {
   releaseName: string;
   error: string;
 }
-
-const queryClient = appWideAPI.getQueryClient();
 
 export const eventHandlers = {
   "helm:install:complete": (payload: HelmInstallPayload) => {

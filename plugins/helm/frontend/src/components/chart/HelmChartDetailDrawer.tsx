@@ -185,10 +185,11 @@ const HelmChartDescription: FC<{ repo: string; chartName: string; version: strin
   );
 };
 
-const HelmChartDetailDrawerBody: FC<{ chartName: string; repository: string }> = ({
-  chartName,
-  repository,
-}) => {
+const HelmChartDetailDrawerBody: FC<{
+  chartName: string;
+  repository: string;
+  onClose: () => void;
+}> = ({ chartName, repository, onClose }) => {
   const { activeContext, unifiedTray } = clusterWideAPI.useExposeProperties();
   const { onNavigateToView } = clusterWideAPI.useExposeMethods();
 
@@ -217,7 +218,10 @@ const HelmChartDetailDrawerBody: FC<{ chartName: string; repository: string }> =
             chartName,
             initialVersion: selectedVersion,
             activeContext,
-            onNavigateToView,
+            onNavigateToView: (view: string) => {
+              onClose();
+              onNavigateToView(view);
+            },
           });
         }}
       />
@@ -248,6 +252,7 @@ export const HelmChartDetailDrawer: FC<HelmChartDetailDrawerProps> = ({
           key={`${repository}-${chartName}`}
           chartName={chartName}
           repository={repository}
+          onClose={onClose}
         />
       )}
     </ResourceDetailDrawer>
