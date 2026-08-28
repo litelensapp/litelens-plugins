@@ -11,7 +11,7 @@ flowchart TB
     subgraph PLUGIN["Helm Plugin Subprocess (Go, hexagonal)"]
         direction TB
         PH["HTTP Server (adapters/presentations/rest)<br/>127.0.0.1:&lt;port&gt;"]
-        PG["gRPC pub/sub Client (adapters/infrastructures/app)<br/>2 dedicated conns: cluster-context watch,<br/>active-namespaces watch + event emit"]
+        PG["gRPC pub/sub Client (packages/core/async,<br/>wired via adapters/presentations/async)<br/>2 dedicated conns: cluster-context watch,<br/>active-namespaces watch + event emit"]
         PS["LockedService (applications/lock)<br/>-&gt; Service (applications/helm)<br/>Helm SDK + k8s client"]
         PH --> PS
         PG --> PS

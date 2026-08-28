@@ -60,7 +60,22 @@ func NewHttpServer(listen, version string, svc port.HelmService) (*HttpServer, e
 
 	router := chi.NewRouter()
 	router.Use(corsMiddleware)
-	NewHandler(svc).RegisterRoutes(router)
+
+	h := NewHandler(svc)
+	router.Post("/api/helm/listCharts", h.listCharts)
+	router.Post("/api/helm/listRepositories", h.listRepositories)
+	router.Post("/api/helm/listReleases", h.listReleases)
+	router.Post("/api/helm/listChartVersions", h.listChartVersions)
+	router.Post("/api/helm/getChartDetail", h.getChartDetail)
+	router.Post("/api/helm/getArtifactHubReadme", h.getArtifactHubReadme)
+	router.Post("/api/helm/installChart", h.installChart)
+	router.Post("/api/helm/upgradeRelease", h.upgradeRelease)
+	router.Post("/api/helm/deleteRelease", h.deleteRelease)
+	router.Post("/api/helm/deleteReleaseWithCleanup", h.deleteReleaseWithCleanup)
+	router.Post("/api/helm/getReleaseByName", h.getReleaseByName)
+	router.Post("/api/helm/getChartValues", h.getChartValues)
+	router.Post("/api/helm/getReleaseHistory", h.getReleaseHistory)
+	router.Post("/api/helm/rollbackRelease", h.rollbackRelease)
 
 	return &HttpServer{
 		httpSrv: &http.Server{Handler: router},

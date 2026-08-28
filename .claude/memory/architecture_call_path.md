@@ -5,7 +5,7 @@ metadata:
   node_type: memory
   type: project
   originSessionId: 7d5e9c83-be5e-4cf5-9fd6-36ce1356d5fc
-  modified: 2026-08-28T07:38:49.831Z
+  modified: 2026-08-28T14:36:53.148Z
 ---
 
 The business/data-plane call path is **plugin frontend → plugin backend directly over localhost HTTP**
@@ -15,24 +15,38 @@ propagation, since those are inherent to running plugins as separate OS processe
 
 A gRPC connection still exists but only as a thin, **generic pub/sub control channel** in the
 *opposite* direction from the old model: the plugin dials the host (`GrpcClient.Dial`) and
-`Subscribe`s to topics — `cluster.context` and `namespaces.active` (via `util.EventTopicClusterContext`
-/ `util.EventTopicNamespacesActive` constants from `packages/core`) — rather than the host driving
-every plugin call through a method-relay `Invoke`/`dispatch()`. The same `GrpcClient` type also
+`Subscribe`s to topics — `cluster.context` and `namespaces.active` (via `async.EventTopicClusterContext`
+/ `async.EventTopicNamespacesActive` constants from `packages/core/async`) — rather than the host
+driving every plugin call through a method-relay `Invoke`/`dispatch()`. The same `GrpcClient` type also
 `Publish`es async progress events outbound, to topic `plugins.<pluginID>.<eventName>` (e.g.
 `plugins.helm.helm:install:complete`).
+
+**`packages/core/async` is shared, reusable machinery, not helm-specific.** `GrpcClient`,
+`BackoffReconnector`, the generic `EventRoute`/`NewRoute[T]` route framework, and the event DTOs
+(`ClusterContextEvent`/`ActiveNamespacesEvent`) were extracted out of this repo into the `litelens`
+host repo's `packages/core/async` package so any future plugin can sync `activeContext`/
+`activeNamespaces` the same way without reimplementing the watch/backoff/dispatch logic. This repo's
+`plugins/helm/internal/adapters/presentations/async/` is now just thin helm-specific wiring:
+`Handler` (dispatches to `async.EventReceiver`) and `EventDispatcher` (builds two `async.EventRoute`s
+via `async.NewRoute` and loops `go route.Run(...)` in `StartAll` — core does **not** expose its own
+`EventDispatcher` anymore, that type was abolished there in favor of each consumer owning its own
+route slice + start loop). `plugins/helm/go.mod` currently pulls `packages/core` in via a **temporary
+local `replace` directive**, not a published version — pending a real tag/release.
 
 **Auth**: the plugin reads a bearer token from stdin at startup (`util.ReadAuthTokenFromStdin`,
 *before* any gRPC operation) and `NewAuthInterceptors` attaches it as `authorization: bearer <token>`
 to every outgoing unary/stream gRPC call — this wasn't present in the earlier control-channel design
 and has no HTTP-side equivalent (the HTTP server is CORS-hardened to localhost-only instead).
 
-**Two independent watch loops, two independent connections**: `DynamicClusterProvider.WatchClusterContext`
-and `.WatchActiveNamespaces` each dial their *own* dedicated `GrpcClient` rather than sharing one —
-`GrpcClient.Dial` closes and replaces the instance's connection, so two watch loops sharing one
-instance would tear down each other's live stream on every reconnect. Both use exponential backoff
-(`kube.BackoffReconnector`, 30s max interval) and block `main.go` via `WaitForInitialSync(5s)` so the
-first HTTP business call isn't served against the kubeconfig-derived guess from `BuildClusterProvider`
-(wrong cluster / unfiltered namespaces) — a result the frontend would then cache indefinitely.
+**Two independent watch loops, two independent connections**: each `packages/core/async.eventRoute[T]`
+(one per topic — cluster-context, active-namespaces, wired up by
+`presentations/async.NewEventDispatcher`) dials its *own* dedicated `GrpcClient` in `runEventLoop`
+rather than sharing one — `GrpcClient.Dial` closes and replaces the instance's connection, so two
+watch loops sharing one instance would tear down each other's live stream on every reconnect. Both use
+exponential backoff (`async.BackoffReconnector`, 30s max interval) and `main.go` blocks via
+`dp.WaitForInitialSync(5s)` after `dispatcher.StartAll(...)` so the first HTTP business call isn't
+served against the kubeconfig-derived guess from `BuildClusterProvider` (wrong cluster / unfiltered
+namespaces) — a result the frontend would then cache indefinitely.
 
 **Why:** documented as `litelens/.claude/plans/plugin-architecture-inversion.md` in the host
 (`litelens`) repo — full design rationale for the HTTP-direct call path lives there. The generic

@@ -11,6 +11,11 @@ type ErrorResponse struct {
 	Message string `json:"message"`
 }
 
+func decodeBody(r *http.Request, v any) (bool, error) {
+	err := json.NewDecoder(r.Body).Decode(v)
+	return err == nil, err
+}
+
 func writeError(w http.ResponseWriter, statusCode int, code, message string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
