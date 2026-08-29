@@ -20,13 +20,13 @@ import (
 const HelmRepositoryLabel = "meta.litelens.io/helm-repository-name"
 
 // ListHelmReleases returns releases visible in the host's active namespace filter
-// (ClusterProvider.ActiveNamespaces, synced from the host over the
+// (KubeClusterProvider.GetActiveNamespaces, synced from the host over the
 // Subscribe("namespaces.active") gRPC stream — see kube.WatchActiveNamespaces). An empty
 // slice means cluster-wide (no filter). Helm's action.List only supports a single
 // namespace or all-namespaces natively, so for 2+ specific namespaces this lists
 // all-namespaces and filters the result here.
 func (s *Service) ListHelmReleases() ([]dto.HelmRelease, error) {
-	cs, rc, activeCtx, _ := s.provider.ActiveClients()
+	cs, rc, activeCtx, _ := s.provider.GetActiveContext()
 	if cs == nil {
 		return []dto.HelmRelease{}, nil
 	}
@@ -34,7 +34,7 @@ func (s *Service) ListHelmReleases() ([]dto.HelmRelease, error) {
 		return []dto.HelmRelease{}, nil
 	}
 
-	namespaces := s.provider.ActiveNamespaces()
+	namespaces := s.provider.GetActiveNamespaces()
 	namespace := ""
 	if len(namespaces) == 1 {
 		namespace = namespaces[0]
@@ -99,7 +99,7 @@ func (s *Service) ListHelmReleases() ([]dto.HelmRelease, error) {
 // finishes — Helm itself doesn't persist the release record until partway through
 // RunWithContext, well after this method returns.
 func (s *Service) InstallHelmChart(namespace, releaseName, repository, chartName, version, valuesYAML string) (string, error) {
-	cs, rc, activeCtx, _ := s.provider.ActiveClients()
+	cs, rc, activeCtx, _ := s.provider.GetActiveContext()
 	if cs == nil {
 		return "", fmt.Errorf("helm: no active kubernetes context")
 	}
@@ -194,7 +194,7 @@ func (s *Service) InstallHelmChart(namespace, releaseName, repository, chartName
 
 // UpgradeHelmRelease upgrades an existing helm release to a different chart version.
 func (s *Service) UpgradeHelmRelease(namespace, releaseName, repository, chartName, version, valuesYAML string) error {
-	cs, rc, activeCtx, _ := s.provider.ActiveClients()
+	cs, rc, activeCtx, _ := s.provider.GetActiveContext()
 	if cs == nil {
 		return fmt.Errorf("helm: no active kubernetes context")
 	}
@@ -282,7 +282,7 @@ func (s *Service) UpgradeHelmRelease(namespace, releaseName, repository, chartNa
 
 // DeleteHelmRelease uninstalls a helm release from the specified namespace.
 func (s *Service) DeleteHelmRelease(namespace, releaseName string) error {
-	cs, rc, activeCtx, _ := s.provider.ActiveClients()
+	cs, rc, activeCtx, _ := s.provider.GetActiveContext()
 	if cs == nil {
 		return fmt.Errorf("helm: no active kubernetes context")
 	}
@@ -312,7 +312,7 @@ func (s *Service) DeleteHelmRelease(namespace, releaseName string) error {
 // Emits helm:cleanup:complete, helm:cleanup:partial, or helm:cleanup:error
 // when the background sweep finishes.
 func (s *Service) DeleteHelmReleaseWithCleanup(namespace, releaseName string) error {
-	cs, rc, activeCtx, _ := s.provider.ActiveClients()
+	cs, rc, activeCtx, _ := s.provider.GetActiveContext()
 	if cs == nil {
 		return fmt.Errorf("helm: no active kubernetes context")
 	}
@@ -586,7 +586,7 @@ func (s *Service) DeleteHelmReleaseWithCleanup(namespace, releaseName string) er
 
 // GetHelmReleaseByName returns detailed metadata for a single helm release.
 func (s *Service) GetHelmReleaseByName(namespace, releaseName string) (*dto.HelmReleaseDetail, error) {
-	cs, rc, activeCtx, _ := s.provider.ActiveClients()
+	cs, rc, activeCtx, _ := s.provider.GetActiveContext()
 	if cs == nil {
 		return nil, fmt.Errorf("helm: no active kubernetes context")
 	}
@@ -644,7 +644,7 @@ func (s *Service) GetHelmReleaseByName(namespace, releaseName string) (*dto.Helm
 
 // GetHelmReleaseHistory returns revision history for a release, sorted newest-first.
 func (s *Service) GetHelmReleaseHistory(namespace, releaseName string) ([]dto.HelmReleaseRevisionHistory, error) {
-	cs, rc, activeCtx, _ := s.provider.ActiveClients()
+	cs, rc, activeCtx, _ := s.provider.GetActiveContext()
 	if cs == nil {
 		return []dto.HelmReleaseRevisionHistory{}, fmt.Errorf("helm: no active kubernetes context")
 	}
@@ -708,7 +708,7 @@ func (s *Service) GetHelmReleaseHistory(namespace, releaseName string) ([]dto.He
 
 // RollbackHelmRelease rolls back a release to a previous revision, synchronously.
 func (s *Service) RollbackHelmRelease(namespace, releaseName string, revision int) error {
-	cs, rc, activeCtx, _ := s.provider.ActiveClients()
+	cs, rc, activeCtx, _ := s.provider.GetActiveContext()
 	if cs == nil {
 		return fmt.Errorf("helm: no active kubernetes context")
 	}

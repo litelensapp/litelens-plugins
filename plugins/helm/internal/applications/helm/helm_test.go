@@ -39,8 +39,8 @@ func TestHelmAge(t *testing.T) {
 	}
 }
 
-// mockMutableClusterProvider implements MutableClusterProvider for testing concurrency.
-type mockMutableClusterProvider struct {
+// mockClusterProvider implements KubeClusterProvider for testing concurrency.
+type mockClusterProvider struct {
 	mu              sync.RWMutex
 	cs              *kubernetes.Clientset
 	rc              *rest.Config
@@ -50,21 +50,21 @@ type mockMutableClusterProvider struct {
 	setContextCalls int
 }
 
-func (p *mockMutableClusterProvider) ActiveClients() (cs *kubernetes.Clientset, rc *rest.Config, activeContext string, kubeconfigPaths []string) {
+func (p *mockClusterProvider) GetActiveContext() (cs *kubernetes.Clientset, rc *rest.Config, activeContext string, kubeconfigPaths []string) {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 	return p.cs, p.rc, p.activeContext, []string{p.kubeconfigPath}
 }
 
-func (p *mockMutableClusterProvider) ActiveNamespaces() []string {
+func (p *mockClusterProvider) GetActiveNamespaces() []string {
 	return nil
 }
 
-func (p *mockMutableClusterProvider) Ctx() context.Context {
+func (p *mockClusterProvider) Ctx() context.Context {
 	return p.ctx
 }
 
-func (p *mockMutableClusterProvider) SetActiveContext(contextName, kubeconfigPath string) error {
+func (p *mockClusterProvider) SetActiveContext(contextName, kubeconfigPath string) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.activeContext = contextName
@@ -73,30 +73,44 @@ func (p *mockMutableClusterProvider) SetActiveContext(contextName, kubeconfigPat
 	return nil
 }
 
-// TestMutableClusterProviderConcurrency verifies that SetActiveContext and ActiveClients
+func (p *mockClusterProvider) SetActiveNamespaces(namespaces []string) error {
+	return nil
+}
+
+func (p *mockClusterProvider) SyncClusterContext(ctx context.Context, contextName, kubeconfigPath string) error {
+	return p.SetActiveContext(contextName, kubeconfigPath)
+}
+
+func (p *mockClusterProvider) SyncActiveNamespaces(ctx context.Context, namespaces []string) error {
+	return p.SetActiveNamespaces(namespaces)
+}
+
+func (p *mockClusterProvider) WaitForInitialSync(timeout time.Duration) {}
+
+// TestClusterProviderConcurrency verifies that SetActiveContext and GetActiveContext
 // can be called concurrently without race conditions. The dynamic cluster provider used
 // in the plugin subprocess must safely handle this pattern: the app calls SetClusterContext
 // (which calls SetActiveContext) on every feature invocation to sync the active context,
-// while the Service concurrently reads via ActiveClients().
-func TestMutableClusterProviderConcurrency(t *testing.T) {
-	t.Run("concurrent SetActiveContext and ActiveClients calls", func(t *testing.T) {
-		provider := &mockMutableClusterProvider{
+// while the Service concurrently reads via GetActiveContext().
+func TestClusterProviderConcurrency(t *testing.T) {
+	t.Run("concurrent SetActiveContext and GetActiveContext calls", func(t *testing.T) {
+		provider := &mockClusterProvider{
 			ctx: context.Background(),
 		}
 
-		// Simulate the pattern: multiple goroutines calling ActiveClients (e.g., helm Service methods)
+		// Simulate the pattern: multiple goroutines calling GetActiveContext (e.g., helm Service methods)
 		// while another goroutine calls SetActiveContext (e.g., gRPC handler for SetClusterContext).
 		var wg sync.WaitGroup
 		numReaders := 50
 		numWriters := 10
 
-		// Readers: call ActiveClients() repeatedly (simulates feature calls in Service methods)
+		// Readers: call GetActiveContext() repeatedly (simulates feature calls in Service methods)
 		for i := 0; i < numReaders; i++ {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
 				for j := 0; j < 100; j++ {
-					_, _, _, _ = provider.ActiveClients()
+					_, _, _, _ = provider.GetActiveContext()
 					time.Sleep(time.Microsecond)
 				}
 			}()

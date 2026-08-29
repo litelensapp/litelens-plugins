@@ -69,25 +69,14 @@ func main() {
 			hostClient.Emit(ctx, eventName, "helm", data)
 		}
 	}
+
 	helmService := helm.NewService(clusterProvider, eventEmitFn, restconfig.Factory{})
 	lockService := lock.NewService(helmService)
 
 	// Subscribe to cluster context and active-namespaces changes from the host
 	if hostClient != nil {
-		dp, ok := clusterProvider.(*kube.DynamicClusterProvider)
-		if !ok {
-			fmt.Fprintf(os.Stderr, "error: cluster provider is not *kube.DynamicClusterProvider\n")
-			os.Exit(1)
-		}
-
-		dispatcher := async.NewEventDispatcher(dp) // dp implements both syncer ports
-		dispatcher.StartAll(fmt.Sprintf("127.0.0.1:%s", hostPort), authToken)
-
-		// Block until the host's replayed cluster-context/active-namespaces messages
-		// land, so the first business call isn't served against BuildClusterProvider's
-		// kubeconfig-derived guess (wrong cluster, unfiltered namespaces) — a result
-		// the frontend would then cache indefinitely.
-		dp.WaitForInitialSync(5 * time.Second)
+		dispatcher := async.NewEventDispatcher(clusterProvider)
+		dispatcher.StartAll(fmt.Sprintf("127.0.0.1:%s", hostPort), authToken, 5*time.Second)
 	}
 
 	// Serve HTTP server (blocks for the process lifetime)
