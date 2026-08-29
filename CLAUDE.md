@@ -58,7 +58,9 @@ rather than duplicated here.
 
 - Go backend and TS frontend payload shapes must be kept in sync by hand across three places: the
   route + handler in `internal/adapters/presentations/rest/handlers.go`, the corresponding export in
-  `frontend/src/api/wailsBridge.ts`, and the type in `frontend/src/api/resources.ts`.
+  `frontend/src/api/bridge.ts` (fetch/retry/backend-address machinery itself now lives in
+  `@litelens/core`'s `createPluginBridge`, shared across plugins — only the per-endpoint payload
+  shapes are helm-specific here), and the type in `frontend/src/api/resources.ts`.
 - Frontend tests live under `__tests__/` alongside the components they cover, using vitest +
   `@testing-library/react`.
 - Go tests are colocated as `*_test.go` in the same package.

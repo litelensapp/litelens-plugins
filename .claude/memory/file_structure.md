@@ -5,7 +5,7 @@ metadata:
   node_type: memory
   type: reference
   originSessionId: 7d5e9c83-be5e-4cf5-9fd6-36ce1356d5fc
-  modified: 2026-08-29T07:10:59.402Z
+  modified: 2026-08-29T07:17:17.808Z
 ---
 
 litelens-plugins is the official plugin repo for Litelens (Wails Kubernetes desktop app). Each plugin
@@ -40,11 +40,10 @@ refactored from the old flat `internal/api`/`internal/helm`/`internal/kube` layo
   `.StartAll(...)`, then `dp.WaitForInitialSync(5s)` to block the first business call until the host's
   replay lands, then starts `adapters/presentations/rest.HttpServer` (blocks for process lifetime).
 - `internal/applications/` — framework-agnostic core:
-  - `applications/port/driven.go` — outbound interfaces the core depends on: `ClusterProvider`,
-    `MutableClusterProvider`, `RESTClientGetterFactory`, `EventEmitter` func type. No longer holds an
-    `EventReceiver` alias — `kube.DynamicClusterProvider` implements
-    `github.com/litelensapp/litelens/packages/core/async.EventReceiver` directly (the port-layer
-    indirection for this interface was abolished).
+  - `applications/port/driven.go` — outbound interfaces the core depends on: `KubeClusterProvider`
+    (merged from the former separate `ClusterProvider`/`MutableClusterProvider` interfaces — embeds
+    `async.EventReceiver` plus `Ctx`/`WaitForInitialSync`/`GetActiveContext`/`SetActiveContext`/
+    `GetActiveNamespaces`/`SetActiveNamespaces`), `RESTClientGetterFactory`, `EventEmitter` func type.
   - `applications/port/driver.go` — `HelmService` interface (what the core exposes inbound), defined
     here rather than in `applications/helm` to avoid circular imports.
   - `applications/helm/` — `Service` (`helm.go`/`helm_chart.go`/`helm_release.go`/`utils.go`), talks to
@@ -80,22 +79,41 @@ refactored from the old flat `internal/api`/`internal/helm`/`internal/kube` layo
 - `internal/adapters/presentations/async/` — thin helm-specific wiring over the shared
   `packages/core/async` event-route framework (unaliased import — this package's own name is also
   `async`, so no collision): `handlers.go`'s `Handler` (dispatches deserialized `async.
-  ClusterContextEvent`/`async.ActiveNamespacesEvent` to an `async.EventReceiver`) and
-  `dispatcher.go`'s `EventDispatcher` (holds `[]async.EventRoute` built via `async.NewRoute(topic,
-  handler, deserializer)` for the two topics, `StartAll` loops and `go route.Run(grpcAddr, authToken)`
-  for each — core no longer exposes its own `EventDispatcher`/`NewEventDispatcher`, that type was
-  abolished in core and this plugin-local wrapper now owns the route slice + start loop directly).
-- `internal/adapters/infrastructures/kube/` — `cluster.go`'s `DynamicClusterProvider` (mutable active
-  cluster client + active-namespace filter, `SetActiveContext`, `SyncClusterContext`/
-  `SyncActiveNamespaces` implementing `async.EventReceiver`, `WaitForInitialSync` gating). No longer
-  has its own `WatchClusterContext`/`WatchActiveNamespaces` reconnect loops or a local
-  `connector.go`/`BackoffReconnector` — that reconnect-loop logic now lives generically inside each
-  `packages/core/async.eventRoute[T].Run`, driven by `presentations/async.EventDispatcher`.
+  ClusterContextEvent`/`async.ActiveNamespacesEvent` to a `port.KubeClusterProvider`; each event
+  carries a `Clearing` bool — the host now pushes a clear-first message immediately before every
+  cluster switch, so `Handler` branches to `ClearActiveContext`/`ClearActiveNamespaces` instead of
+  `SyncClusterContext`/`SyncActiveNamespaces` when set. `maybeAck` unconditionally acks
+  `event.RequestID` back to the host afterward via the injected `ackFunc`, even on an apply error, so
+  the host's `PublishAndAwaitAck` (host repo) doesn't burn its full timeout on a plugin-side error it
+  can't otherwise observe) and `dispatcher.go`'s `EventDispatcher` (holds `[]async.EventRoute` built
+  via `async.NewRoute(topic, handler, deserializer)` for the two topics; `NewEventDispatcher` now also
+  takes the shared `hostClient *async.GrpcClient` and `pluginID` to build the `ackFunc` — it calls
+  `hostClient.Emit(ctx, "ack", pluginID, ...)`, fire-and-forget, reusing the same emit path as
+  business-progress events; `StartAll` loops `go route.Run(grpcAddr, authToken)` for each — core does
+  not expose its own `EventDispatcher`, this plugin-local wrapper owns the route slice + start loop
+  directly).
+- `internal/adapters/infrastructures/kube/` — split across three files, all on the single
+  `ClusterProvider` struct (renamed from `DynamicClusterProvider`; `ClusterProvider` and the old
+  `MutableClusterProvider` port were merged into one `port.KubeClusterProvider`, see above):
+  `provider.go` (struct/constructor `NewClusterProvider`, `Ctx()`, `WaitForInitialSync` — the
+  sync-timeout wait moved here from `main.go`, which no longer needs a type assertion back to the
+  concrete provider), `cluster.go` (`GetActiveContext`/`SetActiveContext`, `SyncClusterContext`/
+  `ClearActiveContext` implementing `async.EventReceiver`; `ClearActiveContext` only blanks
+  `activeContext`, deliberately leaving `cs`/`rc`/`kubeconfigPath` alone so cluster-independent
+  endpoints that don't gate on `activeContext` never see a nil clientset), `namespace.go` (mirror for
+  `GetActiveNamespaces`/`SetActiveNamespaces`/`SyncActiveNamespaces`/`ClearActiveNamespaces` — clearing
+  sets `activeNamespaces` to nil, reusing the existing "empty means cluster-wide" semantics rather than
+  a distinct error state). No longer has its own `WatchClusterContext`/`WatchActiveNamespaces`
+  reconnect loops or a local `connector.go`/`BackoffReconnector` — that reconnect-loop logic lives
+  generically inside each `packages/core/async.eventRoute[T].Run`, driven by
+  `presentations/async.EventDispatcher`.
 - `internal/adapters/infrastructures/restconfig/` — `getter.go`'s `Getter` (implements
   `genericclioptions.RESTClientGetter` off a live `rest.Config`) + `Factory` (implements
   `port.RESTClientGetterFactory`).
 - `internal/config/env.go` — `GetHostGRPCPort()` reads `LITELENS_HOST_GRPC_PORT` (empty when unset,
   e.g. running the binary standalone outside the host app).
+- `internal/config/const.go` — `PluginID = "helm"`, used as the sender ID on emitted events (including
+  acks) and to build the ack topic the host's `PublishAndAwaitAck` waits on.
 
 `plugins/helm/frontend/src/` (TS/React, builds to standalone ESM via `tsup`):
 - `src/index.ts` — **registration-based** plugin entrypoint (no longer a named-export barrel): calls
@@ -109,13 +127,15 @@ refactored from the old flat `internal/api`/`internal/helm`/`internal/kube` layo
   `helm:cleanup:partial`, `helm:cleanup:error`), registered via `clusterWideAPI.registerEvents`; each
   handler toasts (`@litelens/design-system`) and invalidates react-query keys via
   `appWideAPI.getQueryClient()`.
-- `src/api/wailsBridge.ts` — `fetchWithRetry(method, payload)` hits
-  `http://<backendAddr>/api/helm/<camelCaseMethod>` directly; payload field names stay Go PascalCase.
-  Must match the `RegisterRoutes` table in
-  `internal/adapters/presentations/rest/handlers.go` exactly. Backend address from
-  `window.go.app.App.GetPluginBackendAddr("helm")`, cached module-level; a thrown `TypeError` (network
-  failure) triggers one cache-invalidate + refetch + retry, a parsed `{code,message}` error body does
-  not retry.
+- `src/api/bridge.ts` (renamed from `wailsBridge.ts`) — the fetch/retry/backend-address-caching
+  machinery (`fetchWithRetry`, `TypeError`-triggers-one-retry, `PluginError` type) moved out into
+  `@litelens/core`'s `createPluginBridge(pluginID)` factory so other plugins can reuse it instead of
+  duplicating it; this file now just calls `createPluginBridge(PLUGIN_ID)` once (`export const bridge
+  = createPluginBridge(PLUGIN_ID)`) and defines the per-endpoint payload exports
+  (`bridge.fetchWithRetry<T>("listCharts", {})` etc., method name → `POST
+  /api/helm/<camelCaseMethod>`, payload field names stay Go PascalCase). Must match the
+  `RegisterRoutes` table in `internal/adapters/presentations/rest/handlers.go` exactly.
+  `frontend/package.json` links `@litelens/core` for the shared bridge/`NavEntry`/etc.
 - `src/api/resources.ts` — TS types mirroring the Go DTOs/handler payloads.
 - `src/api/query.client.ts` — exports `queryClient` (`appWideAPI.getQueryClient()`), a shared
   singleton. All data-mutation hooks import this instead of calling `useQueryClient()` or
@@ -138,5 +158,5 @@ Other:
   `~/.litelens/plugins/helm` install dir; does not produce `helm.lock` (runtime-only, created by host).
 
 Three-place payload sync required by hand: `internal/adapters/presentations/rest/handlers.go`
-route+handler ↔ `frontend/src/api/wailsBridge.ts` export ↔ `frontend/src/api/resources.ts` type. See
+route+handler ↔ `frontend/src/api/bridge.ts` export ↔ `frontend/src/api/resources.ts` type. See
 [[architecture-call-path]].
