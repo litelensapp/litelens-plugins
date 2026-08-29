@@ -13,7 +13,7 @@ export {
   ListHelmRepositories,
   RollbackHelmRelease,
   UpgradeHelmRelease as UpgradeHelmChart,
-} from "./wailsBridge";
+} from "./bridge";
 
 export interface HelmChart {
   Name: string;

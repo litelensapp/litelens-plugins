@@ -1,13 +1,13 @@
 // Calls the Helm plugin's HTTP backend directly over localhost,
 // replacing the previous Wails InvokePlugin gRPC relay.
 //
-// The plugin frontend builds to a standalone ES module (see tsup.config.ts)
-// and is loaded via dynamic import() from a separate bundle — it cannot
-// resolve the `@wailsjs` alias, which only exists inside the main app's own
-// Vite build. Since the plugin runs same-origin in the main app's window
-// (see architecture notes), `window.go`/`window.runtime` are available at
-// runtime regardless of which bundle the calling code came from.
+// The fetch/retry/backend-address-caching machinery is shared across plugins
+// via @litelens/core's createPluginBridge — see that module for the
+// `window.go`/same-origin rationale. Only the per-endpoint payload shapes
+// below are helm-specific.
 
+import { createPluginBridge } from "@litelens/core";
+import { PLUGIN_ID } from "../const";
 import type {
   HelmChart,
   HelmChartDetail,
@@ -17,96 +17,24 @@ import type {
   HelmRepository,
 } from "./resources";
 
-declare global {
-  interface Window {
-    go: {
-      app: {
-        App: {
-          GetPluginBackendAddr(pluginID: string): Promise<string>;
-        };
-      };
-    };
-  }
-}
+export type { PluginError } from "@litelens/core";
 
-// Module-level cache for backend address
-let backendAddr: string | null = null;
-let addressFetchPromise: Promise<string> | null = null;
-
-export type PluginError = {
-  code: string;
-  message: string;
-};
-
-export function invalidateBackendAddrCache(): void {
-  backendAddr = null;
-  addressFetchPromise = null;
-}
-
-async function getBackendAddr(): Promise<string> {
-  if (backendAddr) return backendAddr;
-  if (addressFetchPromise) return addressFetchPromise;
-  addressFetchPromise = window.go.app.App.GetPluginBackendAddr("helm")
-    .then((addr) => {
-      backendAddr = addr;
-      addressFetchPromise = null;
-      return addr;
-    })
-    .catch((err) => {
-      addressFetchPromise = null;
-      throw err;
-    });
-  return addressFetchPromise;
-}
-
-async function doFetch<T>(method: string, payload: unknown, addr: string): Promise<T> {
-  const response = await fetch(`http://${addr}/api/helm/${method}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-  if (!response.ok) {
-    const errBody = (await response.json()) as PluginError;
-    throw errBody;
-  }
-  return (await response.json()) as T;
-}
-
-const fetchWithRetry = async <T>(method: string, payload: unknown): Promise<T> => {
-  const addr = await getBackendAddr();
-  try {
-    return await doFetch<T>(method, payload, addr);
-  } catch (err) {
-    // Only a thrown PluginError (backend responded, just with an error body) should NOT retry.
-    // A raised TypeError from fetch() itself (network/connection failure) means the cached
-    // address is stale -> refetch once and retry once.
-    if (err instanceof TypeError) {
-      invalidateBackendAddrCache();
-      try {
-        const freshAddr = await getBackendAddr();
-        return await doFetch<T>(method, payload, freshAddr);
-      } catch {
-        throw {
-          code: "PLUGIN_UNAVAILABLE",
-          message: "Plugin backend unreachable",
-        } as PluginError;
-      }
-    }
-    throw err;
-  }
-};
+// Exported only so tests can reset the cached backend address between cases
+// (bridge.invalidateBackendAddrCache) — no application code needs it, since
+// fetchWithRetry already self-heals on a stale-address TypeError.
+export const bridge = createPluginBridge(PLUGIN_ID);
 
 export const ListHelmCharts = (): Promise<HelmChart[]> =>
-  fetchWithRetry<HelmChart[]>("listCharts", {});
+  bridge.fetchWithRetry<HelmChart[]>("listCharts", {});
 
 export const ListHelmRepositories = (): Promise<HelmRepository[]> =>
-  fetchWithRetry<HelmRepository[]>("listRepositories", {});
+  bridge.fetchWithRetry<HelmRepository[]>("listRepositories", {});
 
 export const ListHelmReleases = (): Promise<HelmRelease[]> =>
-  fetchWithRetry<HelmRelease[]>("listReleases", {});
+  bridge.fetchWithRetry<HelmRelease[]>("listReleases", {});
 
 export const ListHelmChartVersions = (repository: string, chartName: string): Promise<string[]> =>
-  fetchWithRetry<string[]>("listChartVersions", {
+  bridge.fetchWithRetry<string[]>("listChartVersions", {
     Repository: repository,
     ChartName: chartName,
   });
@@ -116,7 +44,7 @@ export const GetHelmChartDetail = (
   chartName: string,
   version: string
 ): Promise<HelmChartDetail> =>
-  fetchWithRetry<HelmChartDetail>("getChartDetail", {
+  bridge.fetchWithRetry<HelmChartDetail>("getChartDetail", {
     Repository: repository,
     ChartName: chartName,
     Version: version,
@@ -127,7 +55,7 @@ export const GetArtifactHubReadme = (
   chartName: string,
   version: string
 ): Promise<string> =>
-  fetchWithRetry<string>("getArtifactHubReadme", {
+  bridge.fetchWithRetry<string>("getArtifactHubReadme", {
     Repository: repo,
     ChartName: chartName,
     Version: version,
@@ -141,7 +69,7 @@ export const InstallHelmChart = (
   version: string,
   valuesYAML: string
 ): Promise<{ ReleaseName: string }> =>
-  fetchWithRetry<{ ReleaseName: string }>("installChart", {
+  bridge.fetchWithRetry<{ ReleaseName: string }>("installChart", {
     Namespace: namespace,
     ReleaseName: releaseName,
     Repository: repository,
@@ -158,7 +86,7 @@ export const UpgradeHelmRelease = (
   version: string,
   valuesYAML: string
 ): Promise<void> =>
-  fetchWithRetry<void>("upgradeRelease", {
+  bridge.fetchWithRetry<void>("upgradeRelease", {
     Namespace: namespace,
     ReleaseName: releaseName,
     Repository: repository,
@@ -168,13 +96,13 @@ export const UpgradeHelmRelease = (
   });
 
 export const DeleteHelmRelease = (namespace: string, releaseName: string): Promise<void> =>
-  fetchWithRetry<void>("deleteRelease", { Namespace: namespace, ReleaseName: releaseName });
+  bridge.fetchWithRetry<void>("deleteRelease", { Namespace: namespace, ReleaseName: releaseName });
 
 export const DeleteHelmReleaseWithCleanup = (
   namespace: string,
   releaseName: string
 ): Promise<void> =>
-  fetchWithRetry<void>("deleteReleaseWithCleanup", {
+  bridge.fetchWithRetry<void>("deleteReleaseWithCleanup", {
     Namespace: namespace,
     ReleaseName: releaseName,
   });
@@ -183,7 +111,7 @@ export const GetHelmReleaseByName = (
   namespace: string,
   releaseName: string
 ): Promise<HelmReleaseDetail> =>
-  fetchWithRetry<HelmReleaseDetail>("getReleaseByName", {
+  bridge.fetchWithRetry<HelmReleaseDetail>("getReleaseByName", {
     Namespace: namespace,
     ReleaseName: releaseName,
   });
@@ -193,7 +121,7 @@ export const GetHelmChartValues = (
   chartName: string,
   version: string
 ): Promise<string> =>
-  fetchWithRetry<string>("getChartValues", {
+  bridge.fetchWithRetry<string>("getChartValues", {
     Repository: repository,
     ChartName: chartName,
     Version: version,
@@ -203,7 +131,7 @@ export const GetHelmReleaseHistory = (
   namespace: string,
   releaseName: string
 ): Promise<HelmReleaseRevisionHistory[]> =>
-  fetchWithRetry<HelmReleaseRevisionHistory[]>("getReleaseHistory", {
+  bridge.fetchWithRetry<HelmReleaseRevisionHistory[]>("getReleaseHistory", {
     Namespace: namespace,
     ReleaseName: releaseName,
   });
@@ -213,7 +141,7 @@ export const RollbackHelmRelease = (
   releaseName: string,
   revision: number
 ): Promise<void> =>
-  fetchWithRetry<void>("rollbackRelease", {
+  bridge.fetchWithRetry<void>("rollbackRelease", {
     Namespace: namespace,
     ReleaseName: releaseName,
     Revision: revision,
