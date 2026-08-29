@@ -30,3 +30,16 @@ func (p *ClusterProvider) syncNamespacesFromHost(namespaces []string) error {
 func (p *ClusterProvider) SyncActiveNamespaces(ctx context.Context, namespaces []string) error {
 	return p.syncNamespacesFromHost(namespaces)
 }
+
+// ClearActiveNamespaces implements port.KubeClusterProvider (via async.EventReceiver):
+// the host calls this as the first step of every cluster switch — see
+// ClusterProvider.ClearActiveContext. Clearing to nil falls back to GetActiveNamespaces'
+// existing "empty means cluster-wide" semantics rather than a distinct error state: an
+// over-broad (unfiltered) read during the brief switch window is a much smaller risk
+// than the wrong-cluster case ClearActiveContext guards against.
+func (p *ClusterProvider) ClearActiveNamespaces(ctx context.Context) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.activeNamespaces = nil
+	return nil
+}

@@ -18,6 +18,33 @@ vi.mock("../HelmChartDetailDrawer", () => ({
   HelmChartDetailDrawer: () => null,
 }));
 
+vi.mock("@litelens/core", () => ({
+  clusterWideAPI: {
+    useExposeProperties: vi.fn(() => ({
+      activeContext: "ctx",
+      activeNamespaces: [],
+      availableNamespaces: [],
+      resourceLinks: { namespace: vi.fn() },
+      unifiedTray: {
+        tabs: [],
+        activeTabId: null,
+        collapsed: true,
+        expanded: false,
+        snapPoint: "36px",
+        openTab: vi.fn(),
+        setActiveTab: vi.fn(),
+        closeTab: vi.fn(),
+        closeAll: vi.fn(),
+        setSnapPoint: vi.fn(),
+      },
+    })),
+  },
+}));
+
+vi.mock("../../../api/bridge", () => ({
+  setActiveContext: vi.fn(),
+}));
+
 // ─── imports after mocks ──────────────────────────────────────────────────────
 
 import { useGetHelmCharts } from "../../../hooks/data-access/useGetHelmCharts";

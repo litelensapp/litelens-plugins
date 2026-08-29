@@ -1,6 +1,7 @@
 package async
 
 import (
+	"context"
 	"time"
 
 	"github.com/litelensapp/litelens-plugins/plugins/helm/internal/applications/port"
@@ -15,9 +16,15 @@ type EventDispatcher struct {
 }
 
 // NewEventDispatcher wires receiver's routes onto a new dispatcher, but does not start
-// them — call StartAll to launch the event loops.
-func NewEventDispatcher(receiver port.KubeClusterProvider) *EventDispatcher {
-	h := NewHandler(receiver)
+// them — call StartAll to launch the event loops. hostClient/pluginID are used to ack
+// clear-first/synced pushes back to the host (see HostPluginServer.PublishAndAwaitAck,
+// host repo) via the shared GrpcClient.Emit helper, which already publishes to
+// plugins.<pluginID>.<eventName> fire-and-forget in a goroutine.
+func NewEventDispatcher(receiver port.KubeClusterProvider, hostClient *async.GrpcClient, pluginID string) *EventDispatcher {
+	ack := func(ctx context.Context, requestID string) {
+		hostClient.Emit(ctx, "ack", pluginID, map[string]string{"requestId": requestID})
+	}
+	h := NewHandler(receiver, ack)
 
 	return &EventDispatcher{
 		receiver: receiver,

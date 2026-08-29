@@ -131,3 +131,8 @@ require (
 )
 
 tool honnef.co/go/tools/cmd/staticcheck
+
+// Temporary local replace: packages/core hasn't been tagged/released yet with the
+// clear-first/ack fields this plugin now depends on. Swap for a real version bump
+// once packages/core is tagged.
+replace github.com/litelensapp/litelens/packages/core => ../../../litelens/packages/core

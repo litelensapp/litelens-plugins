@@ -71,6 +71,20 @@ func (p *ClusterProvider) SyncClusterContext(ctx context.Context, contextName, k
 	return p.syncContextFromHost(contextName, kubeconfigPath)
 }
 
+// ClearActiveContext implements port.KubeClusterProvider (via async.EventReceiver):
+// the host calls this as the first step of every cluster switch, before it has even
+// resolved the new context's kubeconfig path, so a business call racing in during the
+// switch finds no active context rather than one silently left over from the previous
+// cluster. Deliberately leaves cs/rc/kubeconfigPath untouched — only the activeContext
+// label is cleared — so nothing risks handing a nil clientset to the cluster-independent
+// endpoints that don't gate on activeContext at all.
+func (p *ClusterProvider) ClearActiveContext(ctx context.Context) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.activeContext = ""
+	return nil
+}
+
 // BuildClusterProvider creates a KubeClusterProvider from a kubeconfig path.
 // If kubeconfig is empty, attempts in-cluster config.
 // If kubeconfig is explicitly provided but fails to load, returns an error immediately.

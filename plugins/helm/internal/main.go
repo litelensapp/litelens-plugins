@@ -66,7 +66,7 @@ func main() {
 	// (subscribed via gRPC Subscribe("cluster.context") stream) never race on the underlying k8s client.
 	eventEmitFn := func(ctx context.Context, eventName string, data any) {
 		if hostClient != nil {
-			hostClient.Emit(ctx, eventName, "helm", data)
+			hostClient.Emit(ctx, eventName, config.PluginID, data)
 		}
 	}
 
@@ -75,7 +75,7 @@ func main() {
 
 	// Subscribe to cluster context and active-namespaces changes from the host
 	if hostClient != nil {
-		dispatcher := async.NewEventDispatcher(clusterProvider)
+		dispatcher := async.NewEventDispatcher(clusterProvider, hostClient, config.PluginID)
 		dispatcher.StartAll(fmt.Sprintf("127.0.0.1:%s", hostPort), authToken, 5*time.Second)
 	}
 

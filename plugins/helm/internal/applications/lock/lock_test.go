@@ -55,6 +55,14 @@ func (s *stubProvider) SyncActiveNamespaces(ctx context.Context, namespaces []st
 	return s.SetActiveNamespaces(namespaces)
 }
 
+func (s *stubProvider) ClearActiveContext(ctx context.Context) error {
+	return nil
+}
+
+func (s *stubProvider) ClearActiveNamespaces(ctx context.Context) error {
+	return nil
+}
+
 func (s *stubProvider) WaitForInitialSync(timeout time.Duration) {}
 
 func (s *stubProvider) getSetContextCallCount() int {

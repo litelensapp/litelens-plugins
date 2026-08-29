@@ -22,3 +22,23 @@ func TestClusterProvider_SyncActiveNamespaces(t *testing.T) {
 		t.Fatalf("expected namespaces %v, got %v", namespaces, activeNamespaces)
 	}
 }
+
+// TestClearActiveNamespaces_FallsBackToClusterWide is a regression test for the
+// clear-first cluster-switch design: clearing must reset to nil, matching
+// GetActiveNamespaces' existing "empty means cluster-wide/unfiltered" semantics
+// rather than introducing a new distinct error state.
+func TestClearActiveNamespaces_FallsBackToClusterWide(t *testing.T) {
+	provider := NewClusterProvider(context.Background())
+
+	if err := provider.SyncActiveNamespaces(context.Background(), []string{"default"}); err != nil {
+		t.Fatalf("SyncActiveNamespaces failed: %v", err)
+	}
+
+	if err := provider.ClearActiveNamespaces(context.Background()); err != nil {
+		t.Fatalf("ClearActiveNamespaces failed: %v", err)
+	}
+
+	if got := provider.GetActiveNamespaces(); got != nil {
+		t.Fatalf("expected ClearActiveNamespaces to reset to nil (cluster-wide), got %v", got)
+	}
+}

@@ -146,6 +146,32 @@ users:
 	}
 }
 
+// TestClearActiveContext_DoesNotTouchClientset is a regression test for the
+// clear-first cluster-switch design: clearing must blank the activeContext label so
+// a racing call can't be served against the previous cluster, but must not nil out
+// cs/rc/kubeconfigPath, since cluster-independent endpoints never re-check
+// activeContext and would otherwise see a nil clientset.
+func TestClearActiveContext_DoesNotTouchClientset(t *testing.T) {
+	provider := NewClusterProvider(context.Background())
+	kubeconfigPath := writeFakeKubeconfig(t)
+
+	if err := provider.SetActiveContext("test-context", kubeconfigPath); err != nil {
+		t.Fatalf("SetActiveContext failed: %v", err)
+	}
+
+	if err := provider.ClearActiveContext(context.Background()); err != nil {
+		t.Fatalf("ClearActiveContext failed: %v", err)
+	}
+
+	cs, cfg, activeContext, _ := provider.GetActiveContext()
+	if activeContext != "" {
+		t.Fatalf("expected activeContext to be cleared, got %q", activeContext)
+	}
+	if cs == nil || cfg == nil {
+		t.Fatal("expected ClearActiveContext to leave the previous clientset/config intact")
+	}
+}
+
 // writeFakeKubeconfig writes a syntactically valid kubeconfig to a temp file and
 // returns its path. clientcmd.BuildConfigFromFlags only parses the file and does not
 // dial the cluster, so a fake server URL is sufficient for SetActiveContext to succeed.
