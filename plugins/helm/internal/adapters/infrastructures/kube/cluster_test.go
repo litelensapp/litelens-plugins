@@ -8,15 +8,15 @@ import (
 	"testing"
 )
 
-// TestDynamicClusterProvider_Idempotency documents that setting the same context twice is safe.
-func TestDynamicClusterProvider_Idempotency(t *testing.T) {
-	// The DynamicClusterProvider.SetActiveContext method is idempotent:
+// TestClusterProvider_Idempotency documents that setting the same context twice is safe.
+func TestClusterProvider_Idempotency(t *testing.T) {
+	// The ClusterProvider.SetActiveContext method is idempotent:
 	// - If the context name and kubeconfig path are the same as the previous call,
 	//   the method returns early without reconstructing the Kubernetes client
-	// - This is safe even if called concurrently with ActiveClients() reads
+	// - This is safe even if called concurrently with GetActiveContext() reads
 	// - The early-return check is guarded by mu.RLock()
 
-	provider := NewDynamicClusterProvider(context.Background())
+	provider := NewClusterProvider(context.Background())
 
 	// Both calls should succeed (or both fail on kubeconfig errors, which is fine)
 	err1 := provider.SetActiveContext("test-context", "")
@@ -29,10 +29,10 @@ func TestDynamicClusterProvider_Idempotency(t *testing.T) {
 	}
 }
 
-// TestDynamicClusterProvider_ConcurrentContextAccess tests concurrent SetActiveContext
-// and ActiveClients access.
-func TestDynamicClusterProvider_ConcurrentContextAccess(t *testing.T) {
-	provider := NewDynamicClusterProvider(context.Background())
+// TestClusterProvider_ConcurrentContextAccess tests concurrent SetActiveContext
+// and GetActiveContext access.
+func TestClusterProvider_ConcurrentContextAccess(t *testing.T) {
+	provider := NewClusterProvider(context.Background())
 
 	var wg sync.WaitGroup
 	var contextChangeCount atomic.Int32
@@ -48,12 +48,12 @@ func TestDynamicClusterProvider_ConcurrentContextAccess(t *testing.T) {
 		}(i)
 	}
 
-	// Simulate concurrent ActiveClients calls (from business logic)
+	// Simulate concurrent GetActiveContext calls (from business logic)
 	for i := 0; i < 10; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			_, _, _, _ = provider.ActiveClients()
+			_, _, _, _ = provider.GetActiveContext()
 		}()
 	}
 
@@ -65,10 +65,10 @@ func TestDynamicClusterProvider_ConcurrentContextAccess(t *testing.T) {
 	}
 }
 
-// TestDynamicClusterProvider_SyncClusterContext verifies that SyncClusterContext
+// TestClusterProvider_SyncClusterContext verifies that SyncClusterContext
 // (the syncer port) correctly updates the active context.
-func TestDynamicClusterProvider_SyncClusterContext(t *testing.T) {
-	provider := NewDynamicClusterProvider(context.Background())
+func TestClusterProvider_SyncClusterContext(t *testing.T) {
+	provider := NewClusterProvider(context.Background())
 	kubeconfigPath := writeFakeKubeconfig(t)
 
 	// Call SyncClusterContext
@@ -78,27 +78,9 @@ func TestDynamicClusterProvider_SyncClusterContext(t *testing.T) {
 	}
 
 	// Verify the active context was set
-	_, _, activeContext, _ := provider.ActiveClients()
+	_, _, activeContext, _ := provider.GetActiveContext()
 	if activeContext != "test-context" {
 		t.Fatalf("expected active context 'test-context', got %q", activeContext)
-	}
-}
-
-// TestDynamicClusterProvider_SyncActiveNamespaces verifies that SyncActiveNamespaces
-// (the syncer port) correctly updates the active namespaces.
-func TestDynamicClusterProvider_SyncActiveNamespaces(t *testing.T) {
-	provider := NewDynamicClusterProvider(context.Background())
-
-	namespaces := []string{"default", "kube-system"}
-	err := provider.SyncActiveNamespaces(context.Background(), namespaces)
-	if err != nil {
-		t.Fatalf("SyncActiveNamespaces failed: %v", err)
-	}
-
-	// Verify the active namespaces were set
-	activeNamespaces := provider.ActiveNamespaces()
-	if len(activeNamespaces) != len(namespaces) || activeNamespaces[0] != "default" || activeNamespaces[1] != "kube-system" {
-		t.Fatalf("expected namespaces %v, got %v", namespaces, activeNamespaces)
 	}
 }
 
@@ -143,8 +125,8 @@ users:
 	}
 	kubeconfigPath := f.Name()
 
-	// Construct a DynamicClusterProvider
-	provider := NewDynamicClusterProvider(context.Background())
+	// Construct a ClusterProvider
+	provider := NewClusterProvider(context.Background())
 
 	// Call SetActiveContext with context-b (while kubeconfig's current-context is context-a)
 	err = provider.SetActiveContext("context-b", kubeconfigPath)
@@ -153,14 +135,40 @@ users:
 	}
 
 	// Verify the resulting rest.Config's Host is context-b's server URL, not context-a's
-	_, cfg, _, _ := provider.ActiveClients()
+	_, cfg, _, _ := provider.GetActiveContext()
 	if cfg == nil {
-		t.Fatal("ActiveClients returned nil rest.Config")
+		t.Fatal("GetActiveContext returned nil rest.Config")
 	}
 
 	expectedHost := "https://context-b.example:6443"
 	if cfg.Host != expectedHost {
 		t.Fatalf("expected Host=%q, got %q (bug: likely using kubeconfig's current-context instead of the requested contextName)", expectedHost, cfg.Host)
+	}
+}
+
+// TestClearActiveContext_DoesNotTouchClientset is a regression test for the
+// clear-first cluster-switch design: clearing must blank the activeContext label so
+// a racing call can't be served against the previous cluster, but must not nil out
+// cs/rc/kubeconfigPath, since cluster-independent endpoints never re-check
+// activeContext and would otherwise see a nil clientset.
+func TestClearActiveContext_DoesNotTouchClientset(t *testing.T) {
+	provider := NewClusterProvider(context.Background())
+	kubeconfigPath := writeFakeKubeconfig(t)
+
+	if err := provider.SetActiveContext("test-context", kubeconfigPath); err != nil {
+		t.Fatalf("SetActiveContext failed: %v", err)
+	}
+
+	if err := provider.ClearActiveContext(context.Background()); err != nil {
+		t.Fatalf("ClearActiveContext failed: %v", err)
+	}
+
+	cs, cfg, activeContext, _ := provider.GetActiveContext()
+	if activeContext != "" {
+		t.Fatalf("expected activeContext to be cleared, got %q", activeContext)
+	}
+	if cs == nil || cfg == nil {
+		t.Fatal("expected ClearActiveContext to leave the previous clientset/config intact")
 	}
 }
 

@@ -1,11 +1,15 @@
 import { vi, describe, it, expect, beforeEach, afterEach } from "vitest";
 import {
-  invalidateBackendAddrCache,
+  bridge,
   ListHelmCharts,
   ListHelmRepositories,
   ListHelmReleases,
   PluginError,
-} from "../wailsBridge";
+} from "../bridge";
+
+// Resets the module-level cached backend address between test cases; no
+// application code needs this, only test isolation does (see bridge.ts).
+const { invalidateBackendAddrCache } = bridge;
 
 // Mock window.go.app.App and global fetch
 const mockGetPluginBackendAddr = vi.fn();
@@ -13,7 +17,7 @@ const mockFetch = vi.fn();
 
 beforeEach(() => {
   // Set up global window mocks
-  (global as any).window = {
+  (globalThis as any).window = {
     go: {
       app: {
         App: {
@@ -23,7 +27,7 @@ beforeEach(() => {
     },
   };
 
-  (global as any).fetch = mockFetch;
+  (globalThis as any).fetch = mockFetch;
   invalidateBackendAddrCache();
 });
 
@@ -32,7 +36,7 @@ afterEach(() => {
   invalidateBackendAddrCache();
 });
 
-describe("wailsBridge", () => {
+describe("bridge", () => {
   describe("successful fetch returns parsed data", () => {
     it("ListHelmCharts fetches and parses data successfully", async () => {
       const mockData = [

@@ -5,7 +5,7 @@ metadata:
   node_type: memory
   type: project
   originSessionId: 7d5e9c83-be5e-4cf5-9fd6-36ce1356d5fc
-  modified: 2026-08-28T14:36:53.148Z
+  modified: 2026-08-29T07:17:20.033Z
 ---
 
 The business/data-plane call path is **plugin frontend → plugin backend directly over localhost HTTP**
@@ -30,13 +30,27 @@ host repo's `packages/core/async` package so any future plugin can sync `activeC
 `Handler` (dispatches to `async.EventReceiver`) and `EventDispatcher` (builds two `async.EventRoute`s
 via `async.NewRoute` and loops `go route.Run(...)` in `StartAll` — core does **not** expose its own
 `EventDispatcher` anymore, that type was abolished there in favor of each consumer owning its own
-route slice + start loop). `plugins/helm/go.mod` currently pulls `packages/core` in via a **temporary
-local `replace` directive**, not a published version — pending a real tag/release.
+route slice + start loop). `plugins/helm/go.mod` pulls `packages/core` in as a tagged, published
+version (currently v1.7.11); `frontend/package.json` pulls `@litelens/core` from npm the same way —
+both were published 2026-08-29, replacing the earlier local `replace`/`link:` directives into the
+sibling `litelens` checkout.
 
 **Auth**: the plugin reads a bearer token from stdin at startup (`util.ReadAuthTokenFromStdin`,
 *before* any gRPC operation) and `NewAuthInterceptors` attaches it as `authorization: bearer <token>`
 to every outgoing unary/stream gRPC call — this wasn't present in the earlier control-channel design
 and has no HTTP-side equivalent (the HTTP server is CORS-hardened to localhost-only instead).
+
+**Clear-first + synchronous-acked push**: every cluster-context/active-namespaces change the host
+pushes now arrives as *two* messages — a `Clearing: true` message first (host calls
+`ClearActiveContext`/`ClearActiveNamespaces`, which blank just the active-context label / namespace
+filter, not the underlying k8s clientset), then the real sync message. This closes the window where a
+business call racing a cluster switch would otherwise read a stale context/namespace left over from
+before the switch. `presentations/async.Handler` acks every event back to the host
+(`hostClient.Emit(ctx, "ack", pluginID, {requestId})`, unconditionally, even on an apply error) so the
+host's `PublishAndAwaitAck` (host repo) can block until the plugin is caught up instead of always
+burning its full timeout. `port.KubeClusterProvider` (merged from the former split
+`ClusterProvider`/`MutableClusterProvider` ports) is what `kube.ClusterProvider` implements — see
+[[file-structure]].
 
 **Two independent watch loops, two independent connections**: each `packages/core/async.eventRoute[T]`
 (one per topic — cluster-context, active-namespaces, wired up by
@@ -56,7 +70,7 @@ use hexagonal architecture" commits.
 
 **How to apply:** when adding a new backend capability, add an HTTP route (never extend gRPC for
 business calls) — see [[file-structure]] for the three-place sync required
-(`handlers.go` ↔ `wailsBridge.ts` ↔ `resources.ts`). Cluster-context and active-namespace changes have
+(`handlers.go` ↔ `bridge.ts` ↔ `resources.ts`). Cluster-context and active-namespace changes have
 no HTTP entry point — they're exclusively the two gRPC subscribe streams. `docs/architecture/*.mmd`
 mirrors this call path; regenerate the SVGs (`docs/architecture/architecture.md` has the mermaid-cli
 command) whenever the wire contract changes.

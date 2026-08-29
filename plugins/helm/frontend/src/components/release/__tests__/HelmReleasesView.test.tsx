@@ -17,6 +17,10 @@ vi.mock("@litelens/core", () => ({
   appWideAPI: {
     getQueryClient: vi.fn(() => new QueryClient({ defaultOptions: { queries: { retry: false } } })),
   },
+  createPluginBridge: vi.fn(() => ({
+    fetchWithRetry: vi.fn(),
+    invalidateBackendAddrCache: vi.fn(),
+  })),
   clusterWideAPI: {
     useExposeProperties: vi.fn(() => ({
       activeContext: "ctx",

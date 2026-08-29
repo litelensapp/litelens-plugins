@@ -5,13 +5,14 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/litelensapp/litelens-plugins/plugins/helm/internal/applications/helm"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 )
 
-// stubProvider implements the MutableClusterProvider interface for testing.
+// stubProvider implements the KubeClusterProvider interface for testing.
 type stubProvider struct {
 	mu                  sync.RWMutex
 	activeContext       string
@@ -19,13 +20,13 @@ type stubProvider struct {
 	setContextCallCount int
 }
 
-func (s *stubProvider) ActiveClients() (cs *kubernetes.Clientset, rc *rest.Config, activeContext string, kubeconfigPaths []string) {
+func (s *stubProvider) GetActiveContext() (cs *kubernetes.Clientset, rc *rest.Config, activeContext string, kubeconfigPaths []string) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return nil, nil, s.activeContext, []string{s.kubeconfigPath}
 }
 
-func (s *stubProvider) ActiveNamespaces() []string {
+func (s *stubProvider) GetActiveNamespaces() []string {
 	return nil
 }
 
@@ -41,6 +42,28 @@ func (s *stubProvider) SetActiveContext(contextName, kubeconfigPath string) erro
 	s.kubeconfigPath = kubeconfigPath
 	return nil
 }
+
+func (s *stubProvider) SetActiveNamespaces(namespaces []string) error {
+	return nil
+}
+
+func (s *stubProvider) SyncClusterContext(ctx context.Context, contextName, kubeconfigPath string) error {
+	return s.SetActiveContext(contextName, kubeconfigPath)
+}
+
+func (s *stubProvider) SyncActiveNamespaces(ctx context.Context, namespaces []string) error {
+	return s.SetActiveNamespaces(namespaces)
+}
+
+func (s *stubProvider) ClearActiveContext(ctx context.Context) error {
+	return nil
+}
+
+func (s *stubProvider) ClearActiveNamespaces(ctx context.Context) error {
+	return nil
+}
+
+func (s *stubProvider) WaitForInitialSync(timeout time.Duration) {}
 
 func (s *stubProvider) getSetContextCallCount() int {
 	s.mu.RLock()

@@ -20,14 +20,14 @@ import (
 
 // Service provides helm business logic operations.
 type Service struct {
-	provider      port.ClusterProvider
+	provider      port.KubeClusterProvider
 	emit          port.EventEmitter
 	getterFactory port.RESTClientGetterFactory
 	cache         *cache
 }
 
 // NewService creates a new helm Service.
-func NewService(provider port.ClusterProvider, emit port.EventEmitter, getterFactory port.RESTClientGetterFactory) *Service {
+func NewService(provider port.KubeClusterProvider, emit port.EventEmitter, getterFactory port.RESTClientGetterFactory) *Service {
 	return &Service{
 		provider:      provider,
 		emit:          emit,
@@ -36,14 +36,9 @@ func NewService(provider port.ClusterProvider, emit port.EventEmitter, getterFac
 	}
 }
 
-// SetActiveContext updates the provider's active cluster context if it supports dynamic switching.
-// Returns an error if the provider does not implement MutableClusterProvider.
+// SetActiveContext updates the provider's active cluster context.
 func (s *Service) SetActiveContext(contextName, kubeconfigPath string) error {
-	mp, ok := s.provider.(port.MutableClusterProvider)
-	if !ok {
-		return fmt.Errorf("helm: cluster provider does not support dynamic context switching")
-	}
-	err := mp.SetActiveContext(contextName, kubeconfigPath)
+	err := s.provider.SetActiveContext(contextName, kubeconfigPath)
 	if err == nil {
 		s.cache.invalidateAllConfigs()
 	}
@@ -68,7 +63,7 @@ func (s *Service) ListHelmRepositories() ([]dto.HelmRepository, error) {
 
 // getOrCreateConfig returns a cached action.Configuration for the active context, or creates and caches a new one.
 func (s *Service) getOrCreateConfig(namespace, activeCtx string) (*action.Configuration, error) {
-	cs, rc, _, kubeconfigPaths := s.provider.ActiveClients()
+	cs, rc, _, kubeconfigPaths := s.provider.GetActiveContext()
 	if cs == nil || rc == nil {
 		return nil, fmt.Errorf("helm: no active kubernetes context or REST config")
 	}
