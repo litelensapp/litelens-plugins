@@ -5,7 +5,7 @@ metadata:
   node_type: memory
   type: project
   originSessionId: 7d5e9c83-be5e-4cf5-9fd6-36ce1356d5fc
-  modified: 2026-08-28T14:36:53.148Z
+  modified: 2026-08-29T07:11:02.025Z
 ---
 
 The business/data-plane call path is **plugin frontend → plugin backend directly over localhost HTTP**
@@ -30,8 +30,10 @@ host repo's `packages/core/async` package so any future plugin can sync `activeC
 `Handler` (dispatches to `async.EventReceiver`) and `EventDispatcher` (builds two `async.EventRoute`s
 via `async.NewRoute` and loops `go route.Run(...)` in `StartAll` — core does **not** expose its own
 `EventDispatcher` anymore, that type was abolished there in favor of each consumer owning its own
-route slice + start loop). `plugins/helm/go.mod` currently pulls `packages/core` in via a **temporary
-local `replace` directive**, not a published version — pending a real tag/release.
+route slice + start loop). `plugins/helm/go.mod` pulls `packages/core` in as a tagged, published
+version (currently v1.7.11); `frontend/package.json` pulls `@litelens/core` from npm the same way —
+both were published 2026-08-29, replacing the earlier local `replace`/`link:` directives into the
+sibling `litelens` checkout.
 
 **Auth**: the plugin reads a bearer token from stdin at startup (`util.ReadAuthTokenFromStdin`,
 *before* any gRPC operation) and `NewAuthInterceptors` attaches it as `authorization: bearer <token>`

@@ -30,7 +30,7 @@ jobs:
       plugin_homepage: https://helm.sh
       plugin_capabilities: helm-charts,helm-releases
       plugin_binary_name: plugin-helm
-      minimumHostVersion: "1.7.10"
+      minimumHostVersion: "1.7.11"
       version: ${{ needs.release-version.outputs.tag_name }}
 
   publish-plugin-registry:

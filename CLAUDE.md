@@ -35,9 +35,10 @@ the old model: the plugin dials the host and subscribes to generic pub/sub topic
 The gRPC pub/sub client, backoff reconnection, and generic event-route/dispatch framework used to
 live in this repo but have been extracted into `packages/core/async` in the sibling `litelens` host
 repo, since every plugin (not just helm) needs to sync `activeContext`/`activeNamespaces` from the
-host the same way. `plugins/helm/go.mod` currently pulls that package in via a **temporary local
-`replace` directive** (not a published version) — it must be swapped for a real version bump once
-`packages/core` is tagged/released.
+host the same way. `plugins/helm/go.mod` pulls that package in as a tagged version
+(`github.com/litelensapp/litelens/packages/core`); the frontend counterpart, `@litelens/core`, is
+consumed the same way from npm. Both were previously wired via local `replace`/`link:` directives
+into the sibling `litelens` checkout before `packages/core` was tagged/released.
 
 The Go backend (`plugins/helm/internal/`) follows hexagonal architecture:
 `internal/applications/` (business logic + `port` interfaces, framework-agnostic) is driven by

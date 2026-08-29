@@ -21,7 +21,8 @@
     "lint:be": "go vet -C plugins/helm ./... && go tool -C plugins/helm staticcheck ./...",
     "prepare": "husky",
     "upgrade:all:fe": "ncu -u -t minor --dep prod,dev,optional --workspaces --root && pnpm install",
-    "upgrade:all:be": "go get -C plugins/helm -u -t ./... && go mod tidy -C plugins/helm"
+    "upgrade:all:helm:be": "go get -C plugins/helm -u -t ./... && go mod tidy -C plugins/helm",
+    "upgrade:all": "pnpm upgrade:all:fe && pnpm upgrade:all:helm:be"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

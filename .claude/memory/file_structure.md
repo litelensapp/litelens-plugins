@@ -5,7 +5,7 @@ metadata:
   node_type: memory
   type: reference
   originSessionId: 7d5e9c83-be5e-4cf5-9fd6-36ce1356d5fc
-  modified: 2026-08-28T14:36:35.726Z
+  modified: 2026-08-29T07:10:59.402Z
 ---
 
 litelens-plugins is the official plugin repo for Litelens (Wails Kubernetes desktop app). Each plugin
@@ -23,8 +23,9 @@ Repo-level:
   [[architecture-call-path]] when the plugin/host wire contract changes.
 - The reusable gRPC pub/sub sync machinery (client, backoff, generic event-route/dispatch framework,
   event DTOs) lives in `packages/core/async` in the sibling `litelens` (host) repo, not in this repo —
-  `plugins/helm/go.mod` currently depends on it via a **temporary local `replace` directive** pending a
-  real tagged release. See [[architecture-call-path]].
+  `plugins/helm/go.mod` depends on it as a tagged release (`github.com/litelensapp/litelens/packages/core`,
+  currently v1.7.11); the frontend counterpart is npm's `@litelens/core`. Both are published now, no
+  local `replace`/`link:` directive remains. See [[architecture-call-path]].
 
 `plugins/helm/internal/` (Go backend, HTTP + gRPC-client subprocess, **hexagonal architecture** —
 refactored from the old flat `internal/api`/`internal/helm`/`internal/kube` layout):
