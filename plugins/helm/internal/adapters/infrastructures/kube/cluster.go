@@ -86,24 +86,28 @@ func (p *ClusterProvider) ClearActiveContext(ctx context.Context) error {
 }
 
 // BuildClusterProvider creates a KubeClusterProvider from a kubeconfig path.
-// If kubeconfig is empty, attempts in-cluster config.
+// If kubeconfig is empty, no cluster client is seeded: the plugin now launches
+// app-wide, before the host has necessarily connected to any cluster, and this
+// process never itself runs inside a Kubernetes pod, so there is no in-cluster
+// config to fall back to. The provider starts with a nil clientset (every
+// cluster-scoped call already checks for that and errors cleanly) until the
+// host pushes a real cluster context over gRPC (see syncContextFromHost).
 // If kubeconfig is explicitly provided but fails to load, returns an error immediately.
 func BuildClusterProvider(kubeconfig string) (port.KubeClusterProvider, error) {
 	dp := NewClusterProvider(context.Background())
 
-	// Resolve the initial context name from kubeconfig
-	var contextName string
 	if kubeconfig == "" {
-		contextName = "in-cluster"
+		return dp, nil
+	}
+
+	// Get active context name from kubeconfig
+	loader := &clientcmd.ClientConfigLoadingRules{Precedence: []string{kubeconfig}}
+	config, err := loader.Load()
+	var contextName string
+	if err != nil || config == nil {
+		contextName = "default"
 	} else {
-		// Get active context name from kubeconfig
-		loader := &clientcmd.ClientConfigLoadingRules{Precedence: []string{kubeconfig}}
-		config, err := loader.Load()
-		if err != nil || config == nil {
-			contextName = "default"
-		} else {
-			contextName = config.CurrentContext
-		}
+		contextName = config.CurrentContext
 	}
 
 	// Seed the initial cluster configuration

@@ -7,3 +7,4 @@ export const QUERY_KEY_HELM_CHART_DETAIL = "helm-chart-detail";
 export const QUERY_KEY_HELM_CHART_VERSIONS = "helm-chart-versions";
 export const QUERY_KEY_ARTIFACTHUB_README = "artifacthub-readme";
 export const QUERY_KEY_HELM_CHART_VALUES = "helm-chart-values";
+export const QUERY_KEY_HELM_REPOSITORY_CATALOG = "helm-repository-catalog";

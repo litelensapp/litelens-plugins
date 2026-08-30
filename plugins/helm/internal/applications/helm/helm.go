@@ -143,3 +143,4 @@ func (s *Service) getOrCreateDiscoveryMap(activeCtx string, cs *kubernetes.Clien
 	s.cache.setDiscovery(activeCtx, kindMap)
 	return kindMap
 }
+

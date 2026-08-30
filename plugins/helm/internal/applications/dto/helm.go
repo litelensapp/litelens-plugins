@@ -27,6 +27,19 @@ type HelmRepository struct {
 	URL  string
 }
 
+// HelmRepositoryCatalogEntry is a known public helm repository, as indexed by
+// ArtifactHub, offered for one-click adding.
+type HelmRepositoryCatalogEntry struct {
+	Name string
+	URL  string
+}
+
+// HelmRepositoryCatalogPage is one page of a paginated catalog search.
+type HelmRepositoryCatalogPage struct {
+	Entries []HelmRepositoryCatalogEntry
+	HasMore bool
+}
+
 type HelmRelease struct {
 	Name              string
 	Namespace         string

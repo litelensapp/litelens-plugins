@@ -225,3 +225,56 @@ func (h *Handler) rollbackRelease(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, struct{}{})
 }
+
+func (h *Handler) searchRepositoryCatalog(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Query  string
+		Offset int
+		Limit  int
+	}
+	if ok, err := decodeBody(r, &req); !ok {
+		fmt.Fprintf(os.Stderr, "error: decode search repository catalog request: %v\n", err)
+		writeError(w, http.StatusBadRequest, "INVALID_REQUEST", "invalid request body")
+		return
+	}
+	if req.Limit <= 0 {
+		req.Limit = 20
+	}
+	result, err := h.svc.SearchHelmRepositoryCatalog(req.Query, req.Offset, req.Limit)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error: search repository catalog: %v\n", err)
+		writeError(w, http.StatusServiceUnavailable, "PLUGIN_UNAVAILABLE", "failed to search repository catalog")
+		return
+	}
+	writeJSON(w, result)
+}
+
+func (h *Handler) addRepository(w http.ResponseWriter, r *http.Request) {
+	var req struct{ Name, URL string }
+	if ok, err := decodeBody(r, &req); !ok {
+		fmt.Fprintf(os.Stderr, "error: decode add repository request: %v\n", err)
+		writeError(w, http.StatusBadRequest, "INVALID_REQUEST", "invalid request body")
+		return
+	}
+	if err := h.svc.AddHelmRepository(req.Name, req.URL); err != nil {
+		fmt.Fprintf(os.Stderr, "error: add repository: %v\n", err)
+		writeError(w, http.StatusServiceUnavailable, "PLUGIN_UNAVAILABLE", err.Error())
+		return
+	}
+	writeJSON(w, struct{}{})
+}
+
+func (h *Handler) removeRepository(w http.ResponseWriter, r *http.Request) {
+	var req struct{ Name string }
+	if ok, err := decodeBody(r, &req); !ok {
+		fmt.Fprintf(os.Stderr, "error: decode remove repository request: %v\n", err)
+		writeError(w, http.StatusBadRequest, "INVALID_REQUEST", "invalid request body")
+		return
+	}
+	if err := h.svc.RemoveHelmRepository(req.Name); err != nil {
+		fmt.Fprintf(os.Stderr, "error: remove repository: %v\n", err)
+		writeError(w, http.StatusServiceUnavailable, "PLUGIN_UNAVAILABLE", "failed to remove repository")
+		return
+	}
+	writeJSON(w, struct{}{})
+}

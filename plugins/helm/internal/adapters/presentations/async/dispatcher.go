@@ -35,14 +35,22 @@ func NewEventDispatcher(receiver port.KubeClusterProvider, hostClient *async.Grp
 	}
 }
 
+// Start launches the event loops without waiting for the initial sync — use when
+// BuildClusterProvider seeded no kubeconfig-derived guess to race against (the plugin
+// launched app-wide, before any cluster is connected), so there's nothing wrong to
+// serve in the meantime and no reason to delay opening the HTTP server.
+func (ed *EventDispatcher) Start(grpcAddr, authToken string) {
+	for _, route := range ed.routes {
+		go route.Run(grpcAddr, authToken)
+	}
+}
+
 // StartAll launches the event loops, then blocks until the host's replayed
 // cluster-context/active-namespaces messages land or syncTimeout elapses — so the
 // first business call isn't served against BuildClusterProvider's kubeconfig-derived
 // guess (wrong cluster, unfiltered namespaces), a result the frontend would then cache
 // indefinitely.
 func (ed *EventDispatcher) StartAll(grpcAddr, authToken string, syncTimeout time.Duration) {
-	for _, route := range ed.routes {
-		go route.Run(grpcAddr, authToken)
-	}
+	ed.Start(grpcAddr, authToken)
 	ed.receiver.WaitForInitialSync(syncTimeout)
 }

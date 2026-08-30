@@ -20,4 +20,7 @@ type HelmService interface {
 	GetHelmReleaseHistory(namespace, releaseName string) ([]dto.HelmReleaseRevisionHistory, error)
 	RollbackHelmRelease(namespace, releaseName string, revision int) error
 	SetActiveContext(contextName, kubeconfigPath string) error
+	SearchHelmRepositoryCatalog(query string, offset, limit int) (dto.HelmRepositoryCatalogPage, error)
+	AddHelmRepository(name, url string) error
+	RemoveHelmRepository(name string) error
 }

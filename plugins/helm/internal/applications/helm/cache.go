@@ -102,3 +102,9 @@ func (c *cache) setIndex(repository string, index *repo.IndexFile, versionMap ma
 		timestamp:  time.Now(),
 	}
 }
+
+func (c *cache) invalidateIndex(repository string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	delete(c.indexCache, repository)
+}

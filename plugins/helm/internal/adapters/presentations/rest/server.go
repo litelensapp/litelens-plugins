@@ -76,6 +76,9 @@ func NewHttpServer(listen, version string, svc port.HelmService) (*HttpServer, e
 	router.Post("/api/helm/getChartValues", h.getChartValues)
 	router.Post("/api/helm/getReleaseHistory", h.getReleaseHistory)
 	router.Post("/api/helm/rollbackRelease", h.rollbackRelease)
+	router.Post("/api/helm/searchRepositoryCatalog", h.searchRepositoryCatalog)
+	router.Post("/api/helm/addRepository", h.addRepository)
+	router.Post("/api/helm/removeRepository", h.removeRepository)
 
 	return &HttpServer{
 		httpSrv: &http.Server{Handler: router},
