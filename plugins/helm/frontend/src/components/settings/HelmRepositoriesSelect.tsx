@@ -14,9 +14,13 @@ import { useAddHelmRepository } from "../../hooks/data-mutation/useAddHelmReposi
 
 interface HelmRepositoriesSelectProps {
   configuredNames: Set<string>;
+  triggerId?: string;
 }
 
-export const HelmRepositoriesSelect: FC<HelmRepositoriesSelectProps> = ({ configuredNames }) => {
+export const HelmRepositoriesSelect: FC<HelmRepositoriesSelectProps> = ({
+  configuredNames,
+  triggerId,
+}) => {
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
 
@@ -53,7 +57,7 @@ export const HelmRepositoriesSelect: FC<HelmRepositoriesSelectProps> = ({ config
         if (!open) setSearch("");
       }}
     >
-      <SelectTrigger className="w-full">
+      <SelectTrigger id={triggerId} className="w-full">
         <SelectValue placeholder="Search public repositories..." />
       </SelectTrigger>
       <SelectContent

@@ -16,16 +16,22 @@ export const HelmSettingsTab = () => {
   return (
     <div className="flex h-full max-w-lg flex-col gap-6">
       <div className="flex flex-col gap-2">
-        <label className="text-left text-xs font-semibold tracking-wider uppercase">
+        <label
+          htmlFor="add-repository-trigger"
+          className="text-left text-xs font-semibold tracking-wider uppercase"
+        >
           Add Repository
         </label>
-        <HelmRepositoriesSelect configuredNames={configuredNames} />
+        <HelmRepositoriesSelect
+          triggerId="add-repository-trigger"
+          configuredNames={configuredNames}
+        />
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col gap-2">
-        <label className="text-left text-xs font-semibold tracking-wider uppercase">
+        <span className="text-left text-xs font-semibold tracking-wider uppercase">
           Configured Repositories
-        </label>
+        </span>
         <ScrollArea className="min-h-0 rounded-md border border-input">
           <div className="flex flex-col divide-y divide-border">
             {!configuredRepos.length && (

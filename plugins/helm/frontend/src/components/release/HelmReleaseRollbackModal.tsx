@@ -97,20 +97,22 @@ export const HelmReleaseRollbackModal: FC<HelmReleaseRollbackModalProps> = ({
                     onClick={() => setSelectedRevision(rev.Revision)}
                   >
                     <TableCell>
-                      <input
-                        type="radio"
-                        name="revision"
-                        value={String(rev.Revision)}
-                        checked={selectedRevision === rev.Revision}
-                        onChange={(e) => setSelectedRevision(parseInt(e.target.value))}
-                        className="mr-2"
-                      />
-                      <span className="font-mono text-xs">
-                        {rev.Revision}
-                        {rev.Revision === currentRevision && (
-                          <span className="text-muted-foreground"> (current)</span>
-                        )}
-                      </span>
+                      <label className="inline-flex cursor-pointer items-center">
+                        <input
+                          type="radio"
+                          name="revision"
+                          value={String(rev.Revision)}
+                          checked={selectedRevision === rev.Revision}
+                          onChange={() => setSelectedRevision(rev.Revision)}
+                          className="mr-2"
+                        />
+                        <span className="font-mono text-xs">
+                          {rev.Revision}
+                          {rev.Revision === currentRevision && (
+                            <span className="text-muted-foreground"> (current)</span>
+                          )}
+                        </span>
+                      </label>
                     </TableCell>
                     <TableCell className="font-mono text-xs">{rev.ChartVersion || "—"}</TableCell>
                     <TableCell>
