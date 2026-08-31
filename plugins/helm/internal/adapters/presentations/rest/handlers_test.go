@@ -75,6 +75,11 @@ func (s *stubService) SetActiveContext(contextName, kubeconfigPath string) error
 	s.lastKubeconfigPath = kubeconfigPath
 	return nil
 }
+func (s *stubService) SearchHelmRepositoryCatalog(query string, offset, limit int) (dto.HelmRepositoryCatalogPage, error) {
+	return dto.HelmRepositoryCatalogPage{}, nil
+}
+func (s *stubService) AddHelmRepository(name, url string) error { return nil }
+func (s *stubService) RemoveHelmRepository(name string) error   { return nil }
 
 func newTestServer(svc *stubService) *httptest.Server {
 	router := chi.NewRouter()
@@ -95,6 +100,9 @@ func newTestServer(svc *stubService) *httptest.Server {
 	router.Post("/api/helm/getChartValues", h.getChartValues)
 	router.Post("/api/helm/getReleaseHistory", h.getReleaseHistory)
 	router.Post("/api/helm/rollbackRelease", h.rollbackRelease)
+	router.Post("/api/helm/searchRepositoryCatalog", h.searchRepositoryCatalog)
+	router.Post("/api/helm/addRepository", h.addRepository)
+	router.Post("/api/helm/removeRepository", h.removeRepository)
 
 	return httptest.NewServer(router)
 }

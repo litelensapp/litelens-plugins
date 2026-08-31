@@ -1,4 +1,5 @@
 export {
+  AddHelmRepository,
   DeleteHelmRelease,
   DeleteHelmReleaseWithCleanup,
   GetArtifactHubReadme,
@@ -11,7 +12,9 @@ export {
   ListHelmChartVersions,
   ListHelmReleases,
   ListHelmRepositories,
+  RemoveHelmRepository,
   RollbackHelmRelease,
+  SearchHelmRepositoryCatalog,
   UpgradeHelmRelease as UpgradeHelmChart,
 } from "./bridge";
 
@@ -40,6 +43,16 @@ export interface HelmChartDetail {
 export interface HelmRepository {
   Name: string;
   URL: string;
+}
+
+export interface HelmRepositoryCatalogEntry {
+  Name: string;
+  URL: string;
+}
+
+export interface HelmRepositoryCatalogPage {
+  Entries: HelmRepositoryCatalogEntry[];
+  HasMore: boolean;
 }
 
 export interface HelmRelease {

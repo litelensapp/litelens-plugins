@@ -73,10 +73,21 @@ func main() {
 	helmService := helm.NewService(clusterProvider, eventEmitFn, restconfig.Factory{})
 	lockService := lock.NewService(helmService)
 
-	// Subscribe to cluster context and active-namespaces changes from the host
+	// Subscribe to cluster context and active-namespaces changes from the host.
+	// Only wait for the initial sync when a kubeconfig was actually passed in:
+	// that's the one case BuildClusterProvider seeded a kubeconfig-derived guess
+	// that could otherwise be served in place of the host's real answer. Launched
+	// app-wide with no kubeconfig, there's no guess to race against — serve
+	// immediately and let the host's context/namespaces land whenever a cluster
+	// actually connects.
 	if hostClient != nil {
 		dispatcher := async.NewEventDispatcher(clusterProvider, hostClient, config.PluginID)
-		dispatcher.StartAll(fmt.Sprintf("127.0.0.1:%s", hostPort), authToken, 5*time.Second)
+		grpcAddr := fmt.Sprintf("127.0.0.1:%s", hostPort)
+		if *kubeconfig != "" {
+			dispatcher.StartAll(grpcAddr, authToken, 5*time.Second)
+		} else {
+			dispatcher.Start(grpcAddr, authToken)
+		}
 	}
 
 	// Serve HTTP server (blocks for the process lifetime)

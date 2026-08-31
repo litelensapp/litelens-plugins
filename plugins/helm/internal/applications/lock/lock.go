@@ -112,3 +112,21 @@ func (l *LockedService) RollbackHelmRelease(namespace, releaseName string, revis
 	defer l.mu.RUnlock()
 	return l.svc.RollbackHelmRelease(namespace, releaseName, revision)
 }
+
+func (l *LockedService) SearchHelmRepositoryCatalog(query string, offset, limit int) (dto.HelmRepositoryCatalogPage, error) {
+	l.mu.RLock()
+	defer l.mu.RUnlock()
+	return l.svc.SearchHelmRepositoryCatalog(query, offset, limit)
+}
+
+func (l *LockedService) AddHelmRepository(name, url string) error {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.svc.AddHelmRepository(name, url)
+}
+
+func (l *LockedService) RemoveHelmRepository(name string) error {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.svc.RemoveHelmRepository(name)
+}

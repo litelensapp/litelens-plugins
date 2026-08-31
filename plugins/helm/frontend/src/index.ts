@@ -3,13 +3,21 @@
 // event handlers with the host instead of relying on named exports or a
 // mount-time hook.
 import { appWideAPI, clusterWideAPI } from "@litelens/core";
+import { ShipWheelIcon } from "@litelens/design-system";
 import { HelmChartsView } from "./components/chart/HelmChartsView";
 import { HelmReleasesView } from "./components/release/HelmReleasesView";
+import { HelmSettingsTab } from "./components/settings/HelmSettingsTab";
 import { HELM_NAV_ENTRY, HELM_TRAY_FAMILIES, PLUGIN_ID } from "./const";
 import { eventHandlers } from "./events";
 import { HelmView } from "./types";
 
 appWideAPI.registerStylesheets(PLUGIN_ID, [import("./style.css")]);
+appWideAPI.registerSettingsTab(PLUGIN_ID, {
+  id: PLUGIN_ID,
+  label: "Helm",
+  icon: ShipWheelIcon,
+  component: HelmSettingsTab,
+});
 
 clusterWideAPI.registerNavEntry(PLUGIN_ID, HELM_NAV_ENTRY);
 clusterWideAPI.registerTrayFamilies(PLUGIN_ID, HELM_TRAY_FAMILIES);

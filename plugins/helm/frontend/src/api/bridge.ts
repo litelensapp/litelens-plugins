@@ -15,6 +15,7 @@ import type {
   HelmReleaseDetail,
   HelmReleaseRevisionHistory,
   HelmRepository,
+  HelmRepositoryCatalogPage,
 } from "./resources";
 
 export type { PluginError } from "@litelens/core";
@@ -146,3 +147,20 @@ export const RollbackHelmRelease = (
     ReleaseName: releaseName,
     Revision: revision,
   });
+
+export const SearchHelmRepositoryCatalog = (
+  query: string,
+  offset: number,
+  limit: number
+): Promise<HelmRepositoryCatalogPage> =>
+  bridge.fetchWithRetry<HelmRepositoryCatalogPage>("searchRepositoryCatalog", {
+    Query: query,
+    Offset: offset,
+    Limit: limit,
+  });
+
+export const AddHelmRepository = (name: string, url: string): Promise<void> =>
+  bridge.fetchWithRetry<void>("addRepository", { Name: name, URL: url });
+
+export const RemoveHelmRepository = (name: string): Promise<void> =>
+  bridge.fetchWithRetry<void>("removeRepository", { Name: name });
