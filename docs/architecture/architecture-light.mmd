@@ -5,7 +5,7 @@ flowchart TB
         HW["Host Webview (React)<br/>host app's own UI"]
         PW["Plugin Webview (React)<br/>plugin frontend module, dynamically<br/>import()-ed inline into the host's tree"]
         HW -. "runtime import()<br/>shares React/context instances" .-> PW
-        PW -- "4 in-process calls via @litelens/core<br/>(view/nav/tray/event registration at load,<br/>useExposeProperties() for resourceLinks/unifiedTray/activeContext)" --> HW
+        PW -- "5 in-process calls via @litelens/core<br/>(view/nav/tray/event/settingsTab registration at load,<br/>useExposeProperties() for resourceLinks/unifiedTray/activeContext)" --> HW
     end
 
     subgraph PLUGIN["Helm Plugin Subprocess (Go, hexagonal)"]

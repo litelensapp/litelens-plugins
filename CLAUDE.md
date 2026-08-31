@@ -57,7 +57,7 @@ rather than duplicated here.
 ## Conventions
 
 - Go backend and TS frontend payload shapes must be kept in sync by hand across three places: the
-  route + handler in `internal/adapters/presentations/rest/handlers.go`, the corresponding export in
+  route (`server.go`) + handler (`internal/adapters/presentations/rest/handlers.go`), the corresponding export in
   `frontend/src/api/bridge.ts` (fetch/retry/backend-address machinery itself now lives in
   `@litelens/core`'s `createPluginBridge`, shared across plugins — only the per-endpoint payload
   shapes are helm-specific here), and the type in `frontend/src/api/resources.ts`.

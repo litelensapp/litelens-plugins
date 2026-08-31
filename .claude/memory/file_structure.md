@@ -5,7 +5,7 @@ metadata:
   node_type: memory
   type: reference
   originSessionId: 7d5e9c83-be5e-4cf5-9fd6-36ce1356d5fc
-  modified: 2026-08-29T07:17:17.808Z
+  modified: 2026-08-31T00:00:00.000Z
 ---
 
 litelens-plugins is the official plugin repo for Litelens (Wails Kubernetes desktop app). Each plugin
@@ -24,8 +24,10 @@ Repo-level:
 - The reusable gRPC pub/sub sync machinery (client, backoff, generic event-route/dispatch framework,
   event DTOs) lives in `packages/core/async` in the sibling `litelens` (host) repo, not in this repo —
   `plugins/helm/go.mod` depends on it as a tagged release (`github.com/litelensapp/litelens/packages/core`,
-  currently v1.7.11); the frontend counterpart is npm's `@litelens/core`. Both are published now, no
-  local `replace`/`link:` directive remains. See [[architecture-call-path]].
+  currently v1.7.11); the frontend counterpart is npm's `@litelens/core` (`frontend/package.json`
+  currently pins `^1.7.12` — the two version numbers can drift since Go and npm tags are cut
+  independently). Both are published now, no local `replace`/`link:` directive remains. See
+  [[architecture-call-path]].
 
 `plugins/helm/internal/` (Go backend, HTTP + gRPC-client subprocess, **hexagonal architecture** —
 refactored from the old flat `internal/api`/`internal/helm`/`internal/kube` layout):
@@ -65,11 +67,14 @@ refactored from the old flat `internal/api`/`internal/helm`/`internal/kube` layo
     context switches must invalidate this.
 - `internal/adapters/presentations/rest/` — inbound HTTP adapter. `server.go`'s `NewHttpServer` binds
   the listener (hard-fails if not localhost — CORS-reflects `Origin`, so non-localhost would be
-  unsafe), wires `handlers.go`'s `RegisterRoutes` (`POST /api/helm/<camelCaseMethod>`, one per
-  `port.HelmService` method) onto `http.ServeMux` via `corsMiddleware`. `Serve()` emits the one-line
-  JSON handshake (`{"type":"READY","version":...,"httpPort":...,"pid":...,"timestamp":...}`) before
-  blocking. `response.go`: `writeError`/`writeJSON`, codes `PLUGIN_UNAVAILABLE` (503),
-  `INVALID_REQUEST` (400), `NOT_FOUND` (404), `INTERNAL_ERROR` (500).
+  unsafe), builds a `chi.NewRouter()` (go-chi, not `http.ServeMux`) directly in `NewHttpServer` itself
+  (registering all 17 `POST /api/helm/<camelCaseMethod>` routes inline, one per `port.HelmService`
+  method — `handlers.go` has no separate `RegisterRoutes` function, it only defines the `Handler`
+  struct + per-route methods), wrapped in `corsMiddleware`. `Serve()` emits the one-line JSON
+  handshake (`{"type":"READY","version":...,"httpPort":...,"pid":...,"timestamp":...}`) before
+  blocking. `utils.go` (not `response.go`): `decodeBody`, `writeError`/`writeJSON`, `ErrorResponse`
+  type; codes `PLUGIN_UNAVAILABLE` (503), `INVALID_REQUEST` (400), `NOT_FOUND` (404), `INTERNAL_ERROR`
+  (500).
 - `internal/adapters/infrastructures/app/` no longer exists — the outbound gRPC pub/sub client
   (`GrpcClient.Dial`/`Subscribe`/`Publish`/`DialAndSubscribe`), auth interceptor
   (`NewAuthInterceptors`), event emitter (`Emit`), and backoff reconnector (`BackoffReconnector`) were
@@ -117,7 +122,8 @@ refactored from the old flat `internal/api`/`internal/helm`/`internal/kube` layo
 
 `plugins/helm/frontend/src/` (TS/React, builds to standalone ESM via `tsup`):
 - `src/index.ts` — **registration-based** plugin entrypoint (no longer a named-export barrel): calls
-  `appWideAPI.registerStylesheets`, `clusterWideAPI.registerNavEntry`, `.registerTrayFamilies`,
+  `appWideAPI.registerStylesheets`, `.registerSettingsTab` (registers `HelmSettingsTab` under the
+  host's Settings surface, labeled "Helm"), `clusterWideAPI.registerNavEntry`, `.registerTrayFamilies`,
   `.registerEvents`, `.registerViews` from `@litelens/core` at module load. The host discovers plugin
   capabilities by importing this module for its side effects, not by reading exported symbols.
 - `src/const.ts` — `PLUGIN_ID`, `HELM_NAV_ENTRY`, `HELM_TRAY_FAMILIES` (tray family keys `"helm-chart"`,
@@ -137,15 +143,24 @@ refactored from the old flat `internal/api`/`internal/helm`/`internal/kube` layo
   `RegisterRoutes` table in `internal/adapters/presentations/rest/handlers.go` exactly.
   `frontend/package.json` links `@litelens/core` for the shared bridge/`NavEntry`/etc.
 - `src/api/resources.ts` — TS types mirroring the Go DTOs/handler payloads.
+- `src/api/api.const.ts` — react-query key constants (`QUERY_KEY_HELM_CHARTS`,
+  `QUERY_KEY_HELM_RELEASES`, `QUERY_KEY_HELM_REPOSITORIES`, `QUERY_KEY_HELM_REPOSITORY_CATALOG`, etc.).
+- `src/api/api.ts` — `DEFAULT_QUERY_OPTIONS` (`refetchOnWindowFocus: false`, `retry: false`,
+  `keepPreviousData`), shared across the data-access hooks.
 - `src/api/query.client.ts` — exports `queryClient` (`appWideAPI.getQueryClient()`), a shared
   singleton. All data-mutation hooks import this instead of calling `useQueryClient()` or
   `appWideAPI.getQueryClient()` themselves — keeps cache reads/writes on one instance.
-- `hooks/data-access/` — react-query queries; `hooks/data-mutation/` — mutations
-  (`useInstallHelmChart.tsx`, `useUpgradeHelmChart.tsx` seed an optimistic `pending-install` /
-  `pending-upgrade` release into the `QUERY_KEY_HELM_RELEASES` cache in `onSuccess`, ahead of the
-  async `helm:install:complete`/`upgrade:complete` event that does the definitive invalidate — see
-  [[architecture-call-path]]). (There is no `hooks/async-events/` directory anymore — event handling
-  lives in top-level `src/events.ts`.)
+- `components/chart/`, `components/release/` — chart browse/install and release list/detail views.
+  `components/settings/` — `HelmSettingsTab.tsx` (registered as the plugin's Settings-tab component)
+  + `HelmRepositoriesSelect.tsx` (add/remove/search Helm repositories, backed by
+  `addRepository`/`removeRepository`/`searchRepositoryCatalog` endpoints).
+- `hooks/data-access/`, `hooks/data-mutation/` — react-query queries/mutations, one file per endpoint,
+  matching the 17 `bridge.ts` exports (chart browse/install, release list/detail/rollback/delete,
+  repository add/remove/search). `useInstallHelmChart.tsx`/`useUpgradeHelmChart.tsx` seed an optimistic
+  `pending-install`/`pending-upgrade` release into the `QUERY_KEY_HELM_RELEASES` cache in `onSuccess`,
+  ahead of the async `helm:install:complete`/`upgrade:complete` event that does the definitive
+  invalidate — see [[architecture-call-path]]. (There is no `hooks/async-events/` directory anymore —
+  event handling lives in top-level `src/events.ts`.)
 - `src/style.css` → compiled by `pnpm build:css` before `tsup`, embedded as `PLUGIN_STYLES` equivalent
   registered via `appWideAPI.registerStylesheets`.
 - Component tests live under `__tests__/` alongside the components they cover (vitest +
@@ -157,6 +172,6 @@ Other:
   `<repo-root>/.output/helm/` (frontend dist + binary + tar.gz + metadata); never touches the real
   `~/.litelens/plugins/helm` install dir; does not produce `helm.lock` (runtime-only, created by host).
 
-Three-place payload sync required by hand: `internal/adapters/presentations/rest/handlers.go`
-route+handler ↔ `frontend/src/api/bridge.ts` export ↔ `frontend/src/api/resources.ts` type. See
-[[architecture-call-path]].
+Three-place payload sync required by hand: route (`server.go`'s `NewHttpServer`) + handler
+(`internal/adapters/presentations/rest/handlers.go`) ↔ `frontend/src/api/bridge.ts` export ↔
+`frontend/src/api/resources.ts` type. See [[architecture-call-path]].
