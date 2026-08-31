@@ -15,7 +15,7 @@ Install:
 
 Frontend (helm plugin, `plugins/helm/frontend`):
 - `pnpm build:helm:fe` — build the bundle (tailwind + tsup).
-- `pnpm test:helm:fe` — vitest run; requires `@litelens/design-system` resolvable in the workspace.
+- `pnpm test:helm:fe` — vitest run.
 - `pnpm test:helm:fe:coverage` — vitest --coverage.
 - `pnpm lint:fe` — eslint `plugins/helm/frontend/src`.
 - Single test file: `cd plugins/helm/frontend && pnpm vitest run src/components/release/__tests__/HelmReleaseStatusBadge.test.tsx`.
@@ -35,7 +35,6 @@ Local install mirroring:
   never touches the real `~/.litelens/plugins/helm`; intentionally produces no `helm.lock` (that's
   host-runtime-only state). See [[file-structure]] for what these paths map to.
 
-**Blocker to know about:** `test:helm:fe` / `build:helm:fe` need `@litelens/design-system`, which lives
-in the main `litelens` app repo, not here. If those commands fail to resolve it, ask the user how their
-workspace links it (local `pnpm link`, adjusted `pnpm-workspace.yaml`, etc.) before assuming the repo
-itself is broken.
+`@litelens/core` and `@litelens/design-system` (npm) and `github.com/litelensapp/litelens/packages/core`
+(Go) are consumed as ordinary published/tagged dependencies from the `litelens` host repo — no local
+`file:`/`replace` linking is needed or expected in this repo anymore.

@@ -130,6 +130,4 @@ require (
 	sigs.k8s.io/structured-merge-diff/v6 v6.4.2 // indirect
 )
 
-replace github.com/litelensapp/litelens/packages/core => ../../../litelens/packages/core
-
 tool honnef.co/go/tools/cmd/staticcheck
